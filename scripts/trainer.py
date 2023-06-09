@@ -8,12 +8,13 @@ import os
 import dataclasses
 import torch.distributed as dist
 import itertools
+from torch.cuda.amp import autocast
 from utils import exp_utils, loss_utils, vis_utils
 
 logger = logging.getLogger(__name__)
 
 
-def train_epoch(config, loader, dataset, model, optimizer, scheduler,
+def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
                 epoch, output_dir, device, rank, perceptual_loss, wandb_run):
     time_meters = exp_utils.AverageMeters()
     loss_meters = exp_utils.AverageMeters()
@@ -28,11 +29,12 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler,
         time_meters.add_loss_value('Data time', time.time() - batch_end)
         end = time.time()
 
+        #with autocast():
         results = model(sample, device)
         time_meters.add_loss_value('Prediction time', time.time() - end)
         end = time.time()
 
-        losses = loss_utils.get_losses(config, results, sample, perceptual_loss)
+        losses = loss_utils.get_losses(config, iter_num, results, sample, perceptual_loss)
         total_loss = 0.0
         for k, v in losses.items():
             if 'loss' in k:
@@ -41,7 +43,14 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler,
         total_loss = total_loss / config.train.accumulation_step
 
         time_meters.add_loss_value('Loss time', time.time() - end)
+        time_meters.add_loss_value('Batch time', time.time() - batch_end)
 
+        # scaler.scale(total_loss).backward()
+        # if (batch_idx+1) % config.train.accumulation_step == 0:
+        #     scaler.step(optimizer)
+        #     optimizer.zero_grad()
+        #     scaler.update()
+        
         total_loss.backward()
         if (batch_idx+1) % config.train.accumulation_step == 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.train.grad_max, norm_type=2.0)
@@ -51,15 +60,15 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler,
 
         if iter_num % config.print_freq == 0:  
             msg = 'Epoch {0}, Iter {1}, rank {2}, ' \
-                'Time: data {data_time:.3f}s, pred {recon_time:.3f}s, loss {loss_time:.3f}s ({loss_time_avg:.3f}s), Loss: '.format(
+                'Time: data {data_time:.3f}s, pred {recon_time:.3f}s, loss {loss_time:.3f}s ({batch_time_avg:.3f}s), Loss: '.format(
                 epoch, iter_num, rank,
                 data_time=time_meters.average_meters['Data time'].val,
                 recon_time=time_meters.average_meters['Prediction time'].val,
                 loss_time=time_meters.average_meters['Loss time'].val,
-                loss_time_avg=time_meters.average_meters['Loss time'].avg
+                batch_time_avg=time_meters.average_meters['Batch time'].avg
             )
             for k, v in loss_meters.average_meters.items():
-                tmp = '{0}: {loss.val:.6f} ({loss.avg:.6f}), '.format(
+                tmp = '{0}: {loss.val:.4f} ({loss.avg:.4f}), '.format(
                         k, loss=v)
                 msg += tmp
             msg = msg[:-2]

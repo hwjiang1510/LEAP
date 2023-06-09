@@ -79,14 +79,15 @@ def main():
     scheduler = transformers.get_linear_schedule_with_warmup(optimizer,
                                                              num_warmup_steps=config.train.schedular_warmup_iter,
                                                              num_training_steps=config.train.total_iteration)
+    scaler = torch.cuda.amp.GradScaler()
     
     # resume training
     best_psnr = 0.0
     ep_resume = None
     if config.train.resume:
-        model, optimizer, scheduler, ep_resume, best_psnr = train_utils.resume_training(
-                                                                model, optimizer, scheduler,
-                                                                output_dir, cpt_name='cpt_last.pth.tar')
+        model, optimizer, scheduler, scaler, ep_resume, best_psnr = train_utils.resume_training(
+                                                                        model, optimizer, scheduler, scaler,
+                                                                        output_dir, cpt_name='cpt_last.pth.tar')
         print('LR after resume {}'.format(optimizer.param_groups[0]['lr']))
     else:
         print('No resume training')
@@ -112,7 +113,7 @@ def main():
                                                pin_memory=True, 
                                                drop_last=True,
                                                sampler=train_sampler)
-    val_data = train_utils.get_dataset(config, split='test')
+    val_data = train_utils.get_dataset(config, split='val')
     val_loader = torch.utils.data.DataLoader(val_data,
                                              batch_size=config.test.batch_size, 
                                              shuffle=False,
@@ -132,6 +133,7 @@ def main():
                     model=model,
                     optimizer=optimizer,
                     scheduler=scheduler,
+                    scaler=scaler,
                     epoch=epoch,
                     output_dir=output_dir,
                     device=device,
@@ -146,6 +148,7 @@ def main():
                         'epoch': epoch + 1,
                         'state_dict': model.module.state_dict(),
                         'optimizer': optimizer.state_dict(),
+                        'scaler': scaler.state_dict(),
                         'schedular': scheduler.state_dict(),
                     }, 
                     checkpoint=output_dir, filename="cpt_last.pth.tar")
@@ -173,6 +176,7 @@ def main():
                             'state_dict': model.module.state_dict(),
                             'optimizer': optimizer.state_dict(),
                             'schedular': scheduler.state_dict(),
+                            'scaler': scaler.state_dict(),
                             'best_psnr': best_psnr,
                             'eval_dict': return_dict,
                         }, 

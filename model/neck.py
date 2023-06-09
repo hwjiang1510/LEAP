@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from model.base_module.flash_attention.transformer import FlashSelfAttnLayer
 from einops import rearrange
 import math
 
@@ -12,14 +13,10 @@ class PETransformer(nn.Module):
         self.config = config
 
         embedding_stdev = (1. / math.sqrt(in_dim))
-        self.pe_canonical = nn.parameter.Parameter(torch.rand(in_dim, in_res, in_res) * embedding_stdev)
+        dtype = torch.float16 if self.config.model.use_flash_attn else torch.float32
+        self.pe_canonical = nn.parameter.Parameter((torch.rand(in_dim, in_res, in_res) * embedding_stdev).to(dtype))
 
-        latent_dim = int(4 * in_dim)
-        self.pe_transformer = []
-        for _ in range(config.model.neck_layers):
-            self.pe_transformer.append(torch.nn.TransformerEncoderLayer(d_model=in_dim, nhead=8, dim_feedforward=latent_dim,
-                                                                        dropout=0.0, activation='gelu', batch_first=True))
-        self.pe_transformer = nn.Sequential(*self.pe_transformer)
+        self.pe_transformer = neck_make_transformer_layers(config, in_dim)
 
 
     def transform_pe(self, x_q, x_k, pe):
@@ -67,3 +64,22 @@ class PETransformer(nn.Module):
         x = x + pe
         return x
 
+
+def neck_make_transformer_layers(config, in_dim):
+    pe_transformer = []
+    num_layers = config.model.neck_layers
+    mlp_ratio = 4.0
+
+    if not config.model.use_flash_attn:
+        latent_dim = int(mlp_ratio * in_dim)
+        pe_transformer = nn.Sequential(*[
+            torch.nn.TransformerEncoderLayer(d_model=in_dim, nhead=8, dim_feedforward=latent_dim,
+                                             dropout=0.0, activation='gelu', batch_first=True)
+            for _ in range(num_layers)    
+        ])
+    else:
+        pe_transformer = nn.Sequential(*[
+            FlashSelfAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=False)
+            for _ in range(num_layers)    
+        ])
+    return pe_transformer

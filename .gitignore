@@ -5,3 +5,4 @@
 /visualization
 /demo
 /wandb
+*.pyc

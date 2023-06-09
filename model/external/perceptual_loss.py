@@ -17,16 +17,17 @@ class VGGPerceptualLoss(torch.nn.Module):
                 p.requires_grad = False
         self.blocks = torch.nn.ModuleList(blocks)
         self.transform = torch.nn.functional.interpolate
-        self.mean = torch.nn.Parameter(torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1))
-        self.std = torch.nn.Parameter(torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1))
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1)
+        self.std = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1)
         self.resize = resize
 
-    def forward(self, input, target, only_deepest=False):
+    def forward(self, input, target, already_normalized=True, only_deepest=False):
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
-        input = (input-self.mean) / self.std
-        target = (target-self.mean) / self.std
+        if not already_normalized:
+            input = (input-self.mean) / self.std
+            target = (target-self.mean) / self.std
         if self.resize:
             input = self.transform(input, mode='bilinear', size=(224, 224), align_corners=False)
             target = self.transform(target, mode='bilinear', size=(224, 224), align_corners=False)

@@ -36,6 +36,7 @@ config.model = edict()
 config.model.backbone_name = 'dinov2'
 config.model.backbone_type = 'vitb14'
 config.model.backbone_fix = False
+config.model.backbone_out_dim = 256
 # encoder
 config.model.encoder_layers = 3
 # pe transformer
@@ -48,6 +49,7 @@ config.model.volume_res = 64
 config.model.render_feat_dim = 16
 # others
 config.model.rot_representation = 'euler'
+config.model.use_flash_attn = False
 
 # render config
 config.render = edict()
@@ -64,11 +66,14 @@ config.loss = edict()
 config.loss.weight_render_rgb = 1.0
 config.loss.weight_render_mask = 0.2
 config.loss.weight_perceptual = 0.0
+config.loss.iter_perceptual = 0
 
 # training config
 config.train = edict()
 config.train.resume = False
 config.train.lr = 0.0001
+config.train.lr_embeddings = 0.0001
+config.train.lr_backbone = 0.00005
 config.train.weight_decay = 0.0001
 config.train.schedular_warmup_iter = 100
 config.train.total_iteration = 200000

@@ -6,6 +6,9 @@ from utils import geo_utils
 
 
 def compute_img_metric(rgb, gt):
+    '''
+    rgb and gt: in shape [h,w,3]
+    '''
     ssim = skimage.metrics.structural_similarity(gt, rgb, multichannel=True, data_range=1)
     psnr = skimage.metrics.peak_signal_noise_ratio(gt, rgb, data_range=1)
     return psnr, ssim

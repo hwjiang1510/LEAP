@@ -18,6 +18,10 @@ inverse_transform = transforms.Compose([
     transforms.Normalize(mean=-mean, std=[1, 1, 1])
 ])
 
+transform = transforms.Compose([
+    transforms.Normalize(mean=torch.tensor([0.4850, 0.4560, 0.4060]), std=torch.tensor([0.2290, 0.2240, 0.2250])),
+    ])
+
 
 def vis_seq(vid_clips, vid_masks, recon_clips, recon_masks, iter_num, output_dir, 
             subfolder='train_seq', vid_depths=None, recon_depths=None, inv_normalize=False):
@@ -27,10 +31,10 @@ def vis_seq(vid_clips, vid_masks, recon_clips, recon_masks, iter_num, output_dir
     output_dir = os.path.join(output_dir, 'visualization', subfolder)
     os.makedirs(output_dir, exist_ok=True)
 
-    vid_clips = vid_clips.detach().cpu()        # [B,t,c,h,w]
-    recon_clips = recon_clips.detach().cpu()
-    vid_masks = vid_masks.detach().cpu()
-    recon_masks = recon_masks.detach().cpu()
+    vid_clips = vid_clips.float().detach().cpu()        # [B,t,c,h,w]
+    recon_clips = recon_clips.float().detach().cpu()
+    vid_masks = vid_masks.float().detach().cpu()
+    recon_masks = recon_masks.float().detach().cpu()
 
     if inv_normalize:
         b,t,c,h,w = vid_clips.shape
@@ -40,6 +44,9 @@ def vis_seq(vid_clips, vid_masks, recon_clips, recon_masks, iter_num, output_dir
         recon_clips = inverse_transform(recon_clips)
         vid_clips = rearrange(vid_clips, '(b t) c h w -> b t c h w', b=b, t=t)
         recon_clips = rearrange(recon_clips, '(b t) c h w -> b t c h w', b=b, t=t)
+    
+    vid_clips = vid_clips.clip(min=0.0, max=1.0)
+    recon_clips = recon_clips.clip(min=0.0, max=1.0)
 
     addition_col, depth_diff_col = 0, 0
     if torch.is_tensor(recon_depths):
@@ -106,11 +113,13 @@ def vis_NVS(imgs, masks, img_name, output_dir, inv_normalize=False, subfolder='v
     os.makedirs(output_dir, exist_ok=True)
     save_name = os.path.join(output_dir, str(img_name) + '.gif')
 
-    imgs = imgs.detach().cpu()  # [N,c,h,w]
+    imgs = imgs.float().detach().cpu()  # [N,c,h,w]
     if inv_normalize:
         imgs = inverse_transform(imgs)
+    imgs = imgs.clip(min=0.0, max=1.0)
+    masks = masks.clip(min=0.0, max=1.0)
 
-    masks = masks.detach().cpu()  # [N,1,h,w]
+    masks = masks.float().detach().cpu()  # [N,1,h,w]
     masks = masks.repeat(1,3,1,1)
     if torch.is_tensor(depths):
         depths = depths.detach().cpu()  # [N,1,h,w]
@@ -119,7 +128,34 @@ def vis_NVS(imgs, masks, img_name, output_dir, inv_normalize=False, subfolder='v
     else:
         imgs = 255 * torch.cat([imgs, masks], dim=-1)  # [N,c,h, 2*w]
         
-
     frames = [np.uint8(img.permute(1,2,0).numpy()) for img in imgs]  # image in [h,w,c]
     #from IPython import embed; embed()
     imageio.mimsave(save_name, frames, 'GIF', duration=0.1)
+
+
+def unnormalize(img):
+    '''
+    img in [b,t,c,h,w] or [b,c,h,w]
+    '''
+    if len(img.shape) == 5:
+        b,t,c,h,w = img.shape
+        img = rearrange(img, 'b t c h w -> (b t) c h w')
+        img = inverse_transform(img)
+        img = rearrange(img, '(b t) c h w -> b t c h w', b=b, t=t)
+    else:
+        img = inverse_transform(img)
+    return img
+
+
+def normalize(img):
+    '''
+    img in [b,t,c,h,w] or [b,c,h,w]
+    '''
+    if len(img.shape) == 5:
+        b,t,c,h,w = img.shape
+        img = rearrange(img, 'b t c h w -> (b t) c h w')
+        img = transform(img)
+        img = rearrange(img, '(b t) c h w -> b t c h w', b=b, t=t)
+    else:
+        img = transform(img)
+    return img

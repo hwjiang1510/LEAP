@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 import math
-from model.backbone import build_backbone
+from model.backbone import build_backbone, BackboneOutBlock
 from model.encoder import CrossViewEncoder
 from model.neck import PETransformer
 from model.lifting import lifting
@@ -22,15 +22,17 @@ class FORGE_V2(nn.Module):
         # build backbone
         self.backbone, self.down_rate, self.backbone_dim = build_backbone(config)
         self.backbone_name = config.model.backbone_name
+        self.backbone_out_dim = config.model.backbone_out_dim
+        self.backbone_out = BackboneOutBlock(in_dim=self.backbone_dim, out_dim=self.backbone_out_dim)
 
         # build cross-view feature encoder
-        self.encoder = CrossViewEncoder(config, in_dim=self.backbone_dim, in_res=int(self.input_size // self.down_rate))
+        self.encoder = CrossViewEncoder(config, in_dim=self.backbone_out_dim, in_res=int(self.input_size // self.down_rate))
 
         # build p.e. transformer
-        self.neck = PETransformer(config, in_dim=self.backbone_dim, in_res=int(self.input_size // self.down_rate))
+        self.neck = PETransformer(config, in_dim=self.backbone_out_dim, in_res=int(self.input_size // self.down_rate))
         
         # build 2D-3D lifting
-        self.lifting = lifting(config, self.backbone_dim)
+        self.lifting = lifting(config, self.backbone_out_dim)
 
         # build 3D-2D render module
         self.render_module = RenderModule(config)
@@ -59,7 +61,12 @@ class FORGE_V2(nn.Module):
 
         # 2D per-view feature extraction
         imgs = rearrange(imgs, 'b t c h w -> (b t) c h w')
-        features = self.extract_feature(imgs)                                   # [b*t,c=768,h,w]
+        if self.config.model.backbone_fix:
+            with torch.no_grad():
+                features = self.extract_feature(imgs)                           # [b*t,c=768,h,w]
+        else:
+            features = self.extract_feature(imgs)
+        features = self.backbone_out(features)
         features = rearrange(features, '(b t) c h w -> b t c h w', b=b, t=t)    # [b,t,c,h,w]
 
         # cross-view feature refinement

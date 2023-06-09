@@ -5,12 +5,15 @@ from pytorch3d.structures import Volumes
 from pytorch3d.renderer import VolumeRenderer, NDCGridRaysampler, EmissionAbsorptionRaymarcher
 from pytorch3d.utils.camera_conversions import cameras_from_opencv_projection
 from pytorch3d.renderer.cameras import PerspectiveCameras
+from utils.train_utils import init_weights_conv
 import math
+from utils.vis_utils import unnormalize, normalize
 
 
 class VolRender(nn.Module):
     def __init__(self, config):
         super(VolRender, self).__init__()
+        self.config = config
 
         # render image resolution setting
         self.img_input_res = config.dataset.img_size
@@ -52,6 +55,9 @@ class VolRender(nn.Module):
         )
         self.upsample_conv = nn.Sequential(*self.upsample_conv)
 
+        # mean_weight = -2.0 if config.train.normalize_img else 0.0
+        # init_weights_conv(self.upsample_conv[-1], mean_weight=mean_weight, mean_bias=0.0)
+
 
     def forward(self, camera_params, features, densities, render_depth=False):
         '''
@@ -79,7 +85,7 @@ class VolRender(nn.Module):
         # perform neural rendering
         rendered = self.renderer(cameras=cameras, volumes=volume, render_depth=render_depth)[0]  # [B,H,W,C+1]
 
-        # split into rgb, mask and depth
+        # split into rgb, mask and depth, and get to original input resolution
         if not render_depth:
             rendered_imgs, rendered_mask = rendered.split([C,1], dim=-1)
         else:
@@ -88,7 +94,12 @@ class VolRender(nn.Module):
             rendered_depth = F.upsample(rendered_depth, size=[self.img_input_res]*2, mode='bilinear')
         rendered_imgs = rendered_imgs.permute(0,3,1,2).contiguous()
         rendered_mask = rendered_mask.permute(0,3,1,2).contiguous()
-        rendered_imgs = F.relu(self.upsample_conv(rendered_imgs))
+        rendered_imgs = self.upsample_conv(rendered_imgs)
+        if self.config.train.normalize_img:
+            rendered_imgs = unnormalize(rendered_imgs)
+        rendered_imgs = F.relu(rendered_imgs)
+        if self.config.train.normalize_img:
+            rendered_imgs = normalize(rendered_imgs)
         rendered_mask = F.upsample(rendered_mask, size=[self.img_input_res]*2, mode='bilinear')
 
         results = {

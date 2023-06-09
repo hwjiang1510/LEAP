@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 def evaluation(config, loader, dataset, model,
                 epoch, output_dir, device, rank, wandb_run, mode='val'):
-    skip = 20 if mode == 'val' else 1
     lpips_vgg = lpips.LPIPS(net="vgg").to(device)
     lpips_vgg.eval()
 
@@ -28,8 +27,6 @@ def evaluation(config, loader, dataset, model,
 
     with torch.no_grad():
         for batch_idx, sample in enumerate(loader):
-            if batch_idx % skip != 0:
-                continue
             sample = exp_utils.dict_to_cuda(sample)
 
             neural_volume = get_neural_volume(config, model, sample, device)
@@ -91,8 +88,8 @@ def get_nvs_results(config, model, sample, device, neural_volume):
 
     # render novel views
     render_results = model.module.render_module.render(camera_params, features_all, densities_all)
-    rendered_imgs_nvs = render_results['rgb'].clip(min=0.0, max=1.0)       # [b*t_nvs,3,h,w]
-    rendered_masks_nvs = render_results['mask'].clip(min=0.0, max=1.0)     # [b*t_nvs,1,h,w]
+    rendered_imgs_nvs = render_results['rgb']       # [b*t_nvs,3,h,w]
+    rendered_masks_nvs = render_results['mask']     # [b*t_nvs,1,h,w]
 
     rendered_imgs_nvs = rearrange(rendered_imgs_nvs, '(b t) c h w -> b t c h w', b=b, t=t_nvs)
     rendered_masks_nvs = rearrange(rendered_masks_nvs, '(b t) c h w -> b t c h w', b=b, t=t_nvs)
@@ -106,6 +103,11 @@ def eval_nvs(config, nvs_results, sample, metrics, lpips_vgg, device):
     target_imgs = sample['images'][:,t:]    # [b,t_nvs,c,h,w]
     seen_flag = sample['seen_flag']         # [b]
     b = target_imgs.shape[0]
+
+    if config.train.normalize_img:
+        nvs_imgs = vis_utils.unnormalize(nvs_imgs).clip(min=0.0, max=1.0)
+        nvs_masks = nvs_masks.clip(min=0.0, max=1.0)
+        target_imgs = vis_utils.unnormalize(target_imgs)
 
     for i in range(b):
         cur_nvs_imgs = nvs_imgs[i]          # [t_nvs,c,h,w]
@@ -135,8 +137,8 @@ def eval_nvs(config, nvs_results, sample, metrics, lpips_vgg, device):
 
 def generate_360_vis(config, model, neural_volume, sample, device, batch_idx, output_dir):
     num_views_all = 4 * 7
-    elev = torch.linspace(0, 360, num_views_all)
-    azim = torch.linspace(0, 0, num_views_all) + 180
+    elev = torch.linspace(0, 0, num_views_all)
+    azim = torch.linspace(0, 360, num_views_all) + 180
     NVS_R_all, NVS_T_all = look_at_view_transform(dist=config.render.camera_z, elev=elev, azim=azim)  # [N=28,3,3], [N,3]
     NVS_pose_all = torch.cat([NVS_R_all, NVS_T_all.view(-1,3,1)], dim=-1).to(device)  # [N,3,4]
 
@@ -153,8 +155,8 @@ def generate_360_vis(config, model, neural_volume, sample, device, batch_idx, ou
                         'T': NVS_pose_all[pose_idx*7: (pose_idx+1)*7,:3,3],
                     }
             render_results = model.module.render_module.render(cameras, cur_features, cur_densities)
-            rendered_imgs_nvs = render_results['rgb'].clip(min=0.0, max=1.0)       # [N,3,h,w]
-            rendered_masks_nvs = render_results['mask'].clip(min=0.0, max=1.0)     # [N,1,h,w]
+            rendered_imgs_nvs = render_results['rgb']       # [N,3,h,w]
+            rendered_masks_nvs = render_results['mask']     # [N,1,h,w]
             rendered_imgs_results.append(rendered_imgs_nvs)
             rendered_masks_results.append(rendered_masks_nvs)
         rendered_imgs_results = torch.cat(rendered_imgs_results, dim=0)

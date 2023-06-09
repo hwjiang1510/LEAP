@@ -111,12 +111,14 @@ class Kubric(Dataset):
         self.seq_names = []
         if self.split == 'train':
             self.seq_names += self.data_split['train']
-        elif self.split == 'test':
+        else:
             if self.category_name != 'general_unseen_category':
                 self.seq_names += self.data_split['test_seen']
                 self.seq_names += self.data_split['test_unseen']
             else:
                 self.seq_names += self.data_split['test_unseen']
+            if self.split == 'val':
+                self.seq_names = self.seq_names[::config.eval_vis_freq]
 
     def __load_dataset_category__(self):
 
@@ -401,7 +403,7 @@ class Kubric(Dataset):
             'seq_name': seq_name,
         }
 
-        if self.split == 'test':
+        if self.split != 'train':
             sample['seen_flag'] = seen_flag
 
         return sample
