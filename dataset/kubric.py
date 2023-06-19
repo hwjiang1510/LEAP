@@ -4,11 +4,12 @@ import json
 import tqdm
 import cv2
 import random
-import numpy as np
 import torch
+import numpy as np
 import random
 import math
 import json
+import time
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as func_transforms
 from torchvision import transforms
@@ -311,14 +312,14 @@ class Kubric(Dataset):
         rgb_files_withIndices = [(it, int(it.replace('rgba_', '').replace('.png', ''))) for it in rgb_files]  # (name in rgba_xxxxx.png, index)
         rgb_files_withIndices = sorted(rgb_files_withIndices, key=lambda x: x[1])
         rgb_files = [it[0] for it in rgb_files_withIndices]
-
+     
         if self.split == 'train':
             chosen_index = random.sample(range(len_seq), self.num_frames_per_seq)
             if self.config.dataset.train_shuffle:
                 random.shuffle(chosen_index)
         else:
             chosen_index = range(self.num_frames_per_seq)
-        
+
         # load image and mask
         chosen_rgb_files = [rgb_files[it] for it in chosen_index]        
         imgs, masks, depths = [], [], []
@@ -330,10 +331,6 @@ class Kubric(Dataset):
             imgs.append(img)
             masks.append(mask)
             depths.append(depth)
-
-        # if self.config.dataset.mask_images:
-        #     assert masks is not None
-        #     imgs *= masks
         
         imgs = torch.stack(imgs)     # [t,c,h,w]
         masks = torch.stack(masks)   # [t,1,h,w]
@@ -356,7 +353,6 @@ class Kubric(Dataset):
         positions = torch.tensor(meta['camera']['positions'])[chosen_index]      # [t,3]
         quaternions = torch.tensor(meta['camera']['quaternions'])[chosen_index]  # [t,4]
         rotations = quat2mat_transform(quaternions)                              # [t,3,3]
-        #rotations += torch.empty_like(rotations).normal_(mean=0,std=0.1)
         cam_poses = torch.zeros(self.num_frames_per_seq, 4, 4)                   # [t,4,4]
         cam_poses[:,:3,:3] = rotations
         cam_poses[:,:3,3] = positions
@@ -388,7 +384,6 @@ class Kubric(Dataset):
         cam_poses_cv2_canonicalized = canonicalize_poses(canonical_pose_cv2, cam_poses_rel_cv2)      # [t,4,4]
         cam_extrinsics_cv2_canonicalized = torch.inverse(cam_poses_cv2_canonicalized)
 
-        
         sample = {
             'images': imgs.float(),                                                 # img observation
             'fg_probabilities': masks.float(),                                      # mask observation

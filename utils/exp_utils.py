@@ -129,12 +129,12 @@ def create_logger(cfg, cfg_name, phase='train'):
     return logger, str(final_output_dir), str(tb_log_dir)
 
 
-def dict_to_cuda(batch):
-    return {k: try_to_cuda(v) for k, v in batch.items()}
+def dict_to_cuda(batch, device):
+    return {k: try_to_cuda(v, device) for k, v in batch.items()}
 
-def try_to_cuda(t):
+def try_to_cuda(t, device):
     try:
-        t = t.cuda()
+        t = t.to(device)
     except AttributeError:
         pass
     return t

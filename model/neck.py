@@ -13,10 +13,17 @@ class PETransformer(nn.Module):
         self.config = config
 
         embedding_stdev = (1. / math.sqrt(in_dim))
-        dtype = torch.float16 if self.config.model.use_flash_attn else torch.float32
-        self.pe_canonical = nn.parameter.Parameter((torch.rand(in_dim, in_res, in_res) * embedding_stdev).to(dtype))
+        self.pe_canonical = nn.parameter.Parameter(torch.rand(in_dim, in_res, in_res) * embedding_stdev)
 
         self.pe_transformer = neck_make_transformer_layers(config, in_dim)
+
+        if config.model.pe_with_spatial_pe:
+            self.pe_spatial = nn.parameter.Parameter(torch.rand(10, in_dim, in_res, in_res) * 1e-4)
+
+        if config.model.neck_scale == 'channel':
+            self.scale = None
+        else:
+            self.scale = float(config.model.neck_scale.split('_')[-1])
 
 
     def transform_pe(self, x_q, x_k, pe):
@@ -27,9 +34,12 @@ class PETransformer(nn.Module):
         '''
         b,c,h,w = pe.shape
         pe = rearrange(pe, 'b c h w -> b (h w) c')
-        scale = c ** -0.5
+        # scale = c ** -0.5 if self.scale is None else self.scale
+        # attn = torch.matmul(x_q, x_k) / scale   # [b,h*w,c] @ [b,c,h*w] -> [b,h*w,h*w]
 
-        attn = torch.matmul(x_q, x_k) / scale   # [b,h*w,c] @ [b,c,h*w] -> [b,h*w,h*w]
+        scale = c ** 0.5 if self.scale is None else self.scale
+        attn = torch.matmul(x_q, x_k) / scale
+        attn = F.softmax(attn, dim=-1)
         pe_q = torch.matmul(attn, pe)           # [b,h*w,h*w] @ [b,h*w,c] -> [b,h*w,c]
         pe_q = rearrange(pe_q, 'b (h w) c -> b c h w', h=h,w=w)
         return pe_q
@@ -49,18 +59,27 @@ class PETransformer(nn.Module):
         pe_noncanonical = []
         for i in range(t-1):
             x_cur = x[:,i+1]                                                # [b,c,h,w]
+        #for i in range(t):
+        #     x_cur = x[:,i] 
             x_cur = rearrange(x_cur, 'b c h w -> b (h w) c')                # [b,h*w,c]
             pe_cur = self.transform_pe(x_cur, x_canonical, pe_canonical)    # [b,c,h,w]
             pe_noncanonical.append(pe_cur)
         pe_noncanonical = torch.stack(pe_noncanonical, dim=1)               # [b,t-1,c,h,w]
+        #pe = pe_noncanonical
 
         pe = torch.cat([pe_canonical.unsqueeze(1), pe_noncanonical], dim=1) # [b,t,c,h,w]
 
         # refine p.e.
         pe = rearrange(pe, 'b t c h w -> b (t h w) c')
+
+        # add p.e. with spatial p.e.
+        if self.config.model.pe_with_spatial_pe:
+            pe_spatial = self.pe_spatial[:t].unsqueeze(0)   #[1,t,c,h,w]
+            pe_spatial = rearrange(pe_spatial, 'b t c h w -> b (t h w) c')
+            pe += pe_spatial
+
         pe = self.pe_transformer(pe)
         pe = rearrange(pe, 'b (t h w) c -> b t c h w', t=t, h=h, w=w)
-        
         x = x + pe
         return x
 

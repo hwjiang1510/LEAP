@@ -5,13 +5,14 @@ from pytorch3d.structures import Volumes
 from pytorch3d.renderer import VolumeRenderer, NDCGridRaysampler, EmissionAbsorptionRaymarcher
 from pytorch3d.utils.camera_conversions import cameras_from_opencv_projection
 from pytorch3d.renderer.cameras import PerspectiveCameras
+from torch.cuda.amp import autocast
 from utils.train_utils import init_weights_conv
 import math
 from utils.vis_utils import unnormalize, normalize
 
 
 class VolRender(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, feat_res=16):
         super(VolRender, self).__init__()
         self.config = config
 
@@ -19,11 +20,13 @@ class VolRender(nn.Module):
         self.img_input_res = config.dataset.img_size
         self.img_render_res = config.dataset.img_size_render
         self.render_down_rate = self.img_input_res // self.img_render_res
+        self.feat_res = feat_res    # used for render p.e. (image features)
+        self.render_feat_down_rate = self.img_render_res // self.feat_res
 
         # neural volume physical world settings
         self.volume_physical_size = config.render.volume_size
 
-        # build renderer
+        # build image renderer
         self.raySampler = NDCGridRaysampler(image_width=self.img_render_res,
                                             image_height=self.img_render_res,
                                             n_pts_per_ray=config.render.n_pts_per_ray,
@@ -32,38 +35,25 @@ class VolRender(nn.Module):
         self.rayMarcher = EmissionAbsorptionRaymarcher()
         self.renderer = VolumeRenderer(raysampler=self.raySampler, raymarcher=self.rayMarcher)
 
-        # build feature->rgb upsample module
-        self.k_size = config.render.k_size
-        self.pad_size = self.k_size // 2
-        self.render_feat_dim = config.model.render_feat_dim
-        self.upsample_conv = []
-        for _ in range(int(math.log2(self.render_down_rate))):
-            self.upsample_conv.append(
-                nn.Sequential(
-                    nn.ConvTranspose2d(self.render_feat_dim, self.render_feat_dim, kernel_size=self.k_size+1, stride=2, padding=self.pad_size),
-                    nn.BatchNorm2d(self.render_feat_dim),
-                    nn.LeakyReLU(inplace=True),
-                )
-            )
-        self.upsample_conv.append(
-            nn.Sequential(
-                nn.Conv2d(self.render_feat_dim, 8, kernel_size=self.k_size, stride=1, padding=self.pad_size),
-                nn.BatchNorm2d(8),
-                nn.LeakyReLU(inplace=True),
-                nn.Conv2d(8, 3, kernel_size=self.k_size, stride=1, padding=self.pad_size),
-            )   
-        )
-        self.upsample_conv = nn.Sequential(*self.upsample_conv)
+        # build feature2rgb upsample module
+        self.upsample_conv = render_make_upconv_layers(config, self.render_down_rate)
 
-        # mean_weight = -2.0 if config.train.normalize_img else 0.0
-        # init_weights_conv(self.upsample_conv[-1], mean_weight=mean_weight, mean_bias=0.0)
+        # build p.e. renderer
+        self.raySampler_feat = NDCGridRaysampler(image_width=self.feat_res,
+                                                 image_height=self.feat_res,
+                                                 n_pts_per_ray=config.model.latent_res,
+                                                 min_depth=config.render.min_depth,
+                                                 max_depth=config.render.max_depth)
+        self.rayMarcher_feat = EmissionAbsorptionRaymarcher()
+        self.renderer_feat = VolumeRenderer(raysampler=self.raySampler_feat, raymarcher=self.rayMarcher_feat)
 
 
-    def forward(self, camera_params, features, densities, render_depth=False):
+    def forward(self, camera_params, features, densities, render_depth=False, pe_volume=None):
         '''
         camera_params: pytorch3d perspective camera, parameters in batch size B
         features: [B,C,D,H,W]
         densities: [B,1,D,H,W]
+        pe_volume: [B,C2,D2,H2,W2]
         '''
         B,C,D,H,W = features.shape
         device = features.device
@@ -78,6 +68,7 @@ class VolRender(nn.Module):
         
         # parse neural volume physical world settings
         single_voxel_size = self.volume_physical_size / D
+        #__import__('pdb').set_trace()
         volume = Volumes(densities=densities,
                          features=features,
                          voxel_size=single_voxel_size)
@@ -92,7 +83,7 @@ class VolRender(nn.Module):
             rendered_imgs, rendered_mask, rendered_depth = rendered.split([C,1,1], dim=-1)
             rendered_depth = rendered_depth.permute(0,3,1,2).contiguous()
             rendered_depth = F.upsample(rendered_depth, size=[self.img_input_res]*2, mode='bilinear')
-        rendered_imgs = rendered_imgs.permute(0,3,1,2).contiguous()
+        rendered_imgs = rendered_imgs.permute(0,3,1,2).contiguous().float()
         rendered_mask = rendered_mask.permute(0,3,1,2).contiguous()
         rendered_imgs = self.upsample_conv(rendered_imgs)
         if self.config.train.normalize_img:
@@ -109,8 +100,42 @@ class VolRender(nn.Module):
         if render_depth:
             results['depth']: render_depth  # [B,1,h,w]
 
+        # render 3D pe volume to 2D
+        if self.config.model.render_pe:
+            camera_params['K'] /= self.render_feat_down_rate
+            camera_params['K'][:,-1,-1] = 1.0
+            cameras_feat = cameras_from_opencv_projection(R=camera_params['R'],
+                                                     tvec=camera_params['T'], 
+                                                     camera_matrix=camera_params['K'],
+                                                     image_size=torch.tensor([self.feat_res]*2).unsqueeze(0).repeat(B,1)).to(device)
+            single_voxel_size_feat = self.volume_physical_size / self.config.model.latent_res
+            densities_feat = F.interpolate(densities, [self.config.model.latent_res]*3, mode='bilinear')
+            volume_pe = Volumes(densities=densities_feat,
+                                features=pe_volume,
+                                voxel_size=single_voxel_size_feat)
+            rendered = self.renderer_feat(cameras=cameras_feat, volumes=volume_pe, render_depth=False)[0]
+            rendered_pe, _ = rendered.split([self.config.model.backbone_out_dim,1], dim=-1)
+            rendered_pe = rendered_pe.permute(0,3,1,2).contiguous().float()
+            results['pe2d'] = rendered_pe
+
         return results
 
 
-        
-        
+def render_make_upconv_layers(config, render_down_rate):
+    k_size = config.render.k_size
+    pad_size = k_size // 2
+    render_feat_dim = config.model.render_feat_dim
+    upsample_conv = []
+    for _ in range(int(math.log2(render_down_rate))):
+        upsample_conv.extend([
+                nn.ConvTranspose2d(render_feat_dim, render_feat_dim, kernel_size=k_size+1, stride=2, padding=pad_size),
+                #nn.LayerNorm([self.render_feat_dim,224,224]), 
+                nn.BatchNorm2d(render_feat_dim),
+                nn.LeakyReLU(inplace=True),])
+    upsample_conv.extend([
+            nn.Conv2d(render_feat_dim, 8, kernel_size=k_size, stride=1, padding=pad_size),
+            #nn.LayerNorm([8,224,224]),
+            nn.BatchNorm2d(8),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(8, 3, kernel_size=k_size, stride=1, padding=pad_size),])
+    upsample_conv = nn.Sequential(*nn.ModuleList(upsample_conv))

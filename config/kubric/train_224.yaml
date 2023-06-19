@@ -1,12 +1,12 @@
-exp_name: 'base_res224_lr2x_percploss-0.1_res32_2'
+exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_neck-softmax-s1_peloss'
 exp_group: 'forgev2'
 output_dir: './output/'
 log_dir: './log'
-workers: 16
+workers: 4
 print_freq: 100
 vis_freq: 500
 eval_vis_freq: 20
-seed: 0
+seed: 42
 
 # dataset config
 dataset:
@@ -24,18 +24,21 @@ model:
   # backbone
   backbone_name: 'dinov2'
   backbone_type: 'vitb14'
-  backbone_fix: True
+  backbone_fix: False
   backbone_out_dim: 768
   # encoder
   encoder_layers: 2
   # pe transformer
+  neck_scale: 'constant_1' #'channel' #'constant_1'
   neck_layers: 2
+  pe_with_spatial_pe: False
   # lifting
   lifting_layers: 4
   latent_res: 16
   # rendering
   volume_res: 64
   render_feat_dim: 16
+  render_pe: True
   # others
   rot_representation: 'quat'
 
@@ -54,13 +57,14 @@ loss:
   weight_render_mask: 5.0
   weight_perceptual: 0.1
   iter_perceptual: 10000
+  weight_pe: 1.0
 
 # training config
 train:
   resume: False
   lr: 0.0002
   lr_embeddings: 0.0001
-  lr_backbone: 0.00001
+  lr_backbone: 0.00001  # 0.00002
   weight_decay: 0.005
   schedular_warmup_iter: 500
   total_iteration: 200000
@@ -68,6 +72,9 @@ train:
   accumulation_step: 1
   normalize_img: True
   grad_max: 5.0
+  use_amp: False
+  use_rand_view: False
+  min_rand_view: 3
 
 # test config
 test:

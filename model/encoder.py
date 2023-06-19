@@ -12,6 +12,7 @@ class CrossViewEncoder(nn.Module):
         self.config = config
 
         self.transformers_cross, self.transformers_self = make_encoder_transformer_layers(config, in_dim)
+        #self.transformer_self = make_encoder_transformer_layers_self_only(config, in_dim)
 
         # 2d positional embedding
         embedding_stdev = (1. / math.sqrt(in_dim))
@@ -31,9 +32,6 @@ class CrossViewEncoder(nn.Module):
         # add camera ID embedding (different between images, same for all pixels in one image)
         cam_emb = self.cam_emb[:t].repeat(1,1,h,w).unsqueeze(0)
         x = x + cam_emb                                                 # [b,t,c,h,w]
-
-        if self.config.model.use_flash_attn:
-            x = x.half()
 
         # get canonical view
         x_canonical = x[:, 0]                                           # [b,c,h,w]
@@ -62,6 +60,7 @@ class CrossViewEncoder(nn.Module):
         x_canonical = rearrange(x_canonical, 'b (t h w) c -> b t c h w', t=1, h=h, w=w)
         x = rearrange(x, 'b (t h w) c -> b t c h w', t=t-1, h=h, w=w)
         x = torch.cat([x_canonical, x], dim=1)          # [b,t,c,h,w]
+
         return x
 
 

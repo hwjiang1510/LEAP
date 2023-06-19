@@ -40,13 +40,16 @@ config.model.backbone_out_dim = 256
 # encoder
 config.model.encoder_layers = 3
 # pe transformer
+config.model.neck_scale = 'constant_1'
 config.model.neck_layers = 3
+config.model.pe_with_spatial_pe = False
 # lifting
 config.model.lifting_layers = 6
 config.model.latent_res = 32
 # rendering
 config.model.volume_res = 64
 config.model.render_feat_dim = 16
+config.model.render_pe = False
 # others
 config.model.rot_representation = 'euler'
 config.model.use_flash_attn = False
@@ -67,6 +70,7 @@ config.loss.weight_render_rgb = 1.0
 config.loss.weight_render_mask = 0.2
 config.loss.weight_perceptual = 0.0
 config.loss.iter_perceptual = 0
+config.loss.weight_pe = 0.0
 
 # training config
 config.train = edict()
@@ -81,6 +85,9 @@ config.train.batch_size = 16
 config.train.accumulation_step = 2
 config.train.normalize_img = True
 config.train.grad_max = 1.0
+config.train.use_amp = False
+config.train.use_rand_view = False
+config.train.min_rand_view = 3
 
 
 # test config

@@ -38,7 +38,7 @@ def get_optimizer(config, model):
                                       weight_decay=config.train.weight_decay)
     else:
         optimizer = torch.optim.AdamW([{'params': pe_params, 'lr': config.train.lr_embeddings},
-                                       {'params': backbone_param, 'lr': config.train.lr},
+                                       {'params': backbone_param, 'lr': config.train.lr_backbone},
                                        {'params': other_param, 'lr': config.train.lr}],
                                        lr=config.train.lr,
                                        weight_decay=config.train.weight_decay)
@@ -101,3 +101,14 @@ def init_weights_conv(m, mean_weight, mean_bias):
     if type(m) == nn.Conv2d:
         nn.init.normal_(m.weight, mean=mean_weight, std=1e-4)
         nn.init.normal_(m.bias, mean=mean_bias, std=1e-4)
+
+
+def truncated_normal_(tensor, mean=0, std=1):
+    # Generate truncated normal distribution
+    size = tensor.shape
+    tmp = tensor.new_empty(size + (4,)).normal_()
+
+    valid = (tmp < 2) & (tmp > -2)
+    ind = valid.max(-1, keepdim=True)[1]
+    tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+    tensor.data.mul_(std).add_(mean)

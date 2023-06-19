@@ -31,4 +31,31 @@ def get_losses(config, iter_num, pred, sample, perceptual_loss=None):
         'weight_render_mask': config.loss.weight_render_mask,
         'weight_perceptual': config.loss.weight_perceptual
     })
-    return losses 
+
+    if config.model.render_pe:
+        loss_pe = compute_pe_loss(config, sample, pred['pe2d_pred'], pred['pe2d_render'])
+        losses.update({
+            'loss_pe': loss_pe,
+            'weight_pe': config.loss_weight_pe
+        })
+
+    return losses
+
+
+def compute_pe_loss(config, sample, pe_pred, pe_render, device):
+    '''
+    pe_pred and pe_render: in shape [b*t,c,h,w]
+    '''
+    b,t,c,h,w = sample['images'].shape
+    device = pe_pred.device
+    feat_size = 16
+    masks = sample['fg_probabilities'].to(device)    # [b,t,h,w]
+    masks = masks.reshape(b*t,1,h,w)
+    masks_down = F.interpolate(masks, [feat_size]*2, mode='nearest')
+
+    pe_target = pe_render.detach() * masks_down.float()
+    pe_pred = pe_pred * masks_down.float()
+    
+    loss_pe = F.mse_loss(pe_pred, pe_target)
+    return loss_pe
+

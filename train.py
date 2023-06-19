@@ -99,7 +99,8 @@ def main():
         torch.backends.cudnn.benchmark = True
         device_ids = range(torch.cuda.device_count())
         print("using {} cuda".format(len(device_ids)))
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=False)
+        find_unused = True if (not config.model.backbone_fix) else False
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=find_unused)
         device_num = len(device_ids)
         ddp = True
 
@@ -142,7 +143,7 @@ def main():
                     wandb_run=wandb_run
                     )
         
-        if args.local_rank == 0:
+        if local_rank == 0:
             train_utils.save_checkpoint(
                     {
                         'epoch': epoch + 1,

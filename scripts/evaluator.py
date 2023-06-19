@@ -27,13 +27,24 @@ def evaluation(config, loader, dataset, model,
 
     with torch.no_grad():
         for batch_idx, sample in enumerate(loader):
-            sample = exp_utils.dict_to_cuda(sample)
+            sample = exp_utils.dict_to_cuda(sample, device)
 
             neural_volume = get_neural_volume(config, model, sample, device)
+            input_results = get_input_results(config, model, sample, device, neural_volume)
             nvs_results = get_nvs_results(config, model, sample, device, neural_volume)
             metrics = eval_nvs(config, nvs_results, sample, metrics, lpips_vgg, device)
             generate_360_vis(config, model, neural_volume, sample, device, batch_idx, output_dir)
 
+            # visualize input view results
+            vis_utils.vis_seq(vid_clips=sample['images'][:,:config.dataset.num_frame],
+                              vid_masks=sample['fg_probabilities'][:,:config.dataset.num_frame],
+                              recon_clips=input_results[0],
+                              recon_masks=input_results[1],
+                              iter_num=str(batch_idx),
+                              output_dir=output_dir,
+                              subfolder='val_seq_input',
+                              inv_normalize=config.train.normalize_img)
+            
             # visualize novel view results
             vis_utils.vis_seq(vid_clips=sample['images'][:,config.dataset.num_frame:],
                               vid_masks=sample['fg_probabilities'][:,config.dataset.num_frame:],
@@ -43,7 +54,7 @@ def evaluation(config, loader, dataset, model,
                               output_dir=output_dir,
                               subfolder='val_seq',
                               inv_normalize=config.train.normalize_img)
-    del lpips_vgg
+    del lpips_vgg, sample, neural_volume, nvs_results
 
     if rank == 0:
         wandb_log = {}
@@ -63,6 +74,36 @@ def get_neural_volume(config, model, sample, device):
     sample_inference = {'images': imgs}
     features, densities = model(sample_inference, device, return_neural_volume=True)
     return (features, densities)
+
+
+def get_input_results(config, model, sample, device, neural_volume):
+    t = config.dataset.num_frame        # number of input
+    t_all = sample['images'].shape[1]
+
+    features, densities = neural_volume     # [b,C,D,H,W]
+    b,C,D,H,W = features.shape
+
+    # parse NVS cameras
+    camK = sample['K_cv2'][:,:t].to(device)                                  # [b,t,3,3]
+    camE_cv2 = sample['cam_extrinsics_cv2_canonicalized'][:,:t].to(device)   # [b,t,4,4]
+    camera_params = {
+        'R': camE_cv2.reshape(-1,4,4)[:,:3,:3],    # [b*t,3,3]
+        'T': camE_cv2.reshape(-1,4,4)[:,:3,3],     # [b*t,3]
+        'K': camK.reshape(-1,3,3)                  # [b*t,3,3]
+    }
+
+    # repeat neural volume for all frame in t
+    densities_all = densities.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t,1,D,H,W)
+    features_all = features.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t,C,D,H,W)
+
+    # render novel views
+    render_results = model.module.render_module.render(camera_params, features_all, densities_all)
+    rendered_imgs = render_results['rgb']       # [b*t,3,h,w]
+    rendered_masks = render_results['mask']     # [b*t,1,h,w]
+
+    rendered_imgs = rearrange(rendered_imgs, '(b t) c h w -> b t c h w', b=b, t=t)
+    rendered_masks = rearrange(rendered_masks, '(b t) c h w -> b t c h w', b=b, t=t)
+    return (rendered_imgs, rendered_masks)
 
 
 def get_nvs_results(config, model, sample, device, neural_volume):

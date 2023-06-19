@@ -12,10 +12,9 @@ class lifting(nn.Module):
         self.config = config
 
         embedding_stdev = (1. / math.sqrt(in_dim))
-        dtype = torch.float16 if self.config.model.use_flash_attn else torch.float32
         self.latent_res = config.model.latent_res
         self.latent_emb = nn.parameter.Parameter(
-                            (torch.rand(self.latent_res, self.latent_res, self.latent_res, in_dim) * embedding_stdev).to(dtype))
+                            (torch.rand(self.latent_res, self.latent_res, self.latent_res, in_dim) * embedding_stdev))
 
         self.transformer = lifting_make_transformer_layers(config, in_dim)
 
@@ -38,15 +37,12 @@ class lifting(nn.Module):
         x = rearrange(x, 'b t c h w -> b (t h w) c')
         
         latent = rearrange(self.latent_emb, 'd h w c -> (d h w) c').unsqueeze(0).repeat(b,1,1).to(device)  # [b,N=d*h*w,c]
-        
         for block in self.transformer:
             latent = block(latent, x)
 
-        if self.config.model.use_flash_attn:
-            latent = latent.float()
-
         latent = rearrange(latent, 'b (d h w) c -> b c d h w', d=self.latent_res, h=self.latent_res, w=self.latent_res)
         latent = self.latent_refine(latent)
+        #__import__('pdb').set_trace()
 
         return latent
 

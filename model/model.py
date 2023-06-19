@@ -1,8 +1,10 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from torch.cuda.amp import autocast
 from einops import rearrange
 import math
+import random
 from model.backbone import build_backbone, BackboneOutBlock
 from model.encoder import CrossViewEncoder
 from model.neck import PETransformer
@@ -24,18 +26,19 @@ class FORGE_V2(nn.Module):
         self.backbone_name = config.model.backbone_name
         self.backbone_out_dim = config.model.backbone_out_dim
         self.backbone_out = BackboneOutBlock(in_dim=self.backbone_dim, out_dim=self.backbone_out_dim)
+        self.feat_res = int(self.input_size // self.down_rate)
 
         # build cross-view feature encoder
-        self.encoder = CrossViewEncoder(config, in_dim=self.backbone_out_dim, in_res=int(self.input_size // self.down_rate))
+        self.encoder = CrossViewEncoder(config, in_dim=self.backbone_out_dim, in_res=self.feat_res)
 
         # build p.e. transformer
-        self.neck = PETransformer(config, in_dim=self.backbone_out_dim, in_res=int(self.input_size // self.down_rate))
+        self.neck = PETransformer(config, in_dim=self.backbone_out_dim, in_res=self.feat_res)
         
         # build 2D-3D lifting
         self.lifting = lifting(config, self.backbone_out_dim)
 
         # build 3D-2D render module
-        self.render_module = RenderModule(config)
+        self.render_module = RenderModule(config, feat_res=self.feat_res)
 
 
     def extract_feature(self, x, return_h_w=False):
@@ -45,11 +48,34 @@ class FORGE_V2(nn.Module):
             h, w = int(h_origin / self.backbone.patch_embed.patch_size[0]), int(w_origin / self.backbone.patch_embed.patch_size[1])
             dim = out.shape[-1]
             out = out.reshape(b, h, w, dim).permute(0,3,1,2)
-            if return_h_w:
-                return out, h, w
         else:
             raise NotImplementedError('unknown image backbone')
         return out
+    
+    def extract_feature2(self, x, return_h_w=False):
+        b, _, h_origin, w_origin = x.shape
+        out = self.dino_s.get_intermediate_layers(x, n=1)[0]
+        h, w = int(h_origin / self.dino_s.patch_embed.patch_size[0]), int(w_origin / self.dino_s.patch_embed.patch_size[1])
+        dim = out.shape[-1]
+        out = out.reshape(b, h, w, dim).permute(0,3,1,2)
+        return out
+    
+    def sample_views(self, features):
+        '''
+        features: in [b,t,c,h,w]
+        '''
+        if not self.config.train.use_rand_view:
+            return features
+        else:
+            input_num_views = self.config.dataset.num_frame
+            # min_num_views = self.config.train.min_rand_view
+            # selected_num_views = random.choice(list(range(min_num_views, input_num_views+1)))
+            # selected_views = random.sample(list(range(input_num_views)), selected_num_views)
+            # selected_views = sorted(selected_views)
+            starting_view = random.choice([0,1])
+            selected_views = list(range(starting_view, input_num_views))
+            features = features[:,selected_views]
+            return features
 
 
     def forward(self, sample, device, return_neural_volume=False, render_depth=False):
@@ -58,7 +84,7 @@ class FORGE_V2(nn.Module):
         '''
         imgs = sample['images'].to(device)
         b,t = imgs.shape[:2]
-
+        
         # 2D per-view feature extraction
         imgs = rearrange(imgs, 'b t c h w -> (b t) c h w')
         if self.config.model.backbone_fix:
@@ -74,6 +100,10 @@ class FORGE_V2(nn.Module):
 
         # transform 2D p.e. and added to features
         features = self.neck(features)                                          # [b,t,c,h,w]
+
+        # only use a subset of views
+        # if self.training:
+        #     features = self.sample_views(features)
 
         # 2D-3D lifting
         features_3d = self.lifting(features)                                    # [b,c=128,D,H,W]
