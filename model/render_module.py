@@ -44,7 +44,7 @@ class RenderModule(nn.Module):
         self.render = VolRender(config, feat_res=feat_res)
 
 
-    def forward(self, features, sample, return_neural_volume=False, render_depth=False):
+    def forward(self, features, sample, return_neural_volume=False, render_depth=False, feat3d_raw=None):
         '''
         feat3d: in shape [b,C,D,H,W]
         '''
@@ -60,20 +60,34 @@ class RenderModule(nn.Module):
             return (features, densities)
 
         # get camera pose and intrinsics for rendering
-        t = self.num_img_train
-        camK = sample['K_cv2'][:,:t].to(device)                                  # [b,t,3,3]
-        camE_cv2 = sample['cam_extrinsics_cv2_canonicalized'][:,:t].to(device)   # [b,t,4,4]
-        camera_params = {
-            'R': camE_cv2.reshape(b*t,4,4)[:,:3,:3],    # [b*t,3,3]
-            'T': camE_cv2.reshape(b*t,4,4)[:,:3,3],     # [b*t,3]
-            'K': camK.reshape(b*t,3,3)                  # [b*t,3,3]
-        }
+        if not self.config.dataset.train_all_frame:
+            t = self.num_img_train
+            camK = sample['K_cv2'][:,:t].to(device)                                  # [b,t,3,3]
+            camE_cv2 = sample['cam_extrinsics_cv2_canonicalized'][:,:t].to(device)   # [b,t,4,4]
+            camera_params = {
+                'R': camE_cv2.reshape(b*t,4,4)[:,:3,:3],    # [b*t,3,3]
+                'T': camE_cv2.reshape(b*t,4,4)[:,:3,3],     # [b*t,3]
+                'K': camK.reshape(b*t,3,3)                  # [b*t,3,3]
+            }
+            t_repeat = t
+        else:
+            # use novel views for rendering loss
+            t = self.num_img_train
+            camK = sample['K_cv2'][:,t:].to(device)                                  # [b,t,3,3]
+            camE_cv2 = sample['cam_extrinsics_cv2_canonicalized'][:,t:].to(device)   # [b,t,4,4]
+            t_nvs = sample['K_cv2'].shape[1] - t
+            camera_params = {
+                'R': camE_cv2.reshape(b*t_nvs,4,4)[:,:3,:3],    # [b*t_nvs,3,3]
+                'T': camE_cv2.reshape(b*t_nvs,4,4)[:,:3,3],     # [b*t_nvs,3]
+                'K': camK.reshape(b*t_nvs,3,3)                  # [b*t_nvs,3,3]
+            }
+            t_repeat = t_nvs
 
         # repeat neural volume for all frame in t
-        densities_all = densities.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t,1,D2,H2,W2)
-        features_all = features.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t,C2,D2,H2,W2)
+        densities_all = densities.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t_repeat,1,D2,H2,W2)
+        features_all = features.unsqueeze(1).repeat(1,t,1,1,1,1).reshape(b*t_repeat,C2,D2,H2,W2)
 
-        render_results = self.render(camera_params, features_all, densities_all, render_depth)
+        render_results = self.render(camera_params, features_all, densities_all, render_depth, feat3d_raw)
 
         return render_results
 

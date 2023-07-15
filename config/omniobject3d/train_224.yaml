@@ -1,16 +1,16 @@
-exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_pose_uncanonical'
-exp_group: 'forgev2'
+exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-2.2_rel-pose'
+exp_group: 'forgev2-omniobject3d'
 output_dir: './output/'
 log_dir: './log'
 workers: 4
 print_freq: 100
 vis_freq: 500
-eval_vis_freq: 20
+eval_vis_freq: 10
 seed: 42
 
 # dataset config
 dataset:
-  name: 'kubric'
+  name: 'omniobject3d'
   category: 'general'
   task: 'singlesequence'
   img_size: 224
@@ -52,10 +52,10 @@ model:
 # render config
 render:
   n_pts_per_ray: 64
-  volume_size: 1.0  #  in meters
-  min_depth: 0.5
-  max_depth: 2.0
-  camera_z: 1.5 # camera pose T_z
+  volume_size: 2.2
+  min_depth: 2.5
+  max_depth: 5.5
+  camera_z: 4.0 # camera pose T_z
   k_size: 5
 
 # loss config
@@ -82,7 +82,7 @@ train:
   use_amp: False
   use_rand_view: False
   min_rand_view: 3
-  use_uncanonicalized_pose: True
+  use_uncanonicalized_pose: False
 
 # test config
 test:

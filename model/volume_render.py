@@ -9,6 +9,8 @@ from torch.cuda.amp import autocast
 from utils.train_utils import init_weights_conv
 import math
 from utils.vis_utils import unnormalize, normalize
+from einops import rearrange
+import copy
 
 
 class VolRender(nn.Module):
@@ -39,16 +41,17 @@ class VolRender(nn.Module):
         self.upsample_conv = render_make_upconv_layers(config, self.render_down_rate)
 
         # build p.e. renderer
-        self.raySampler_feat = NDCGridRaysampler(image_width=self.feat_res,
-                                                 image_height=self.feat_res,
-                                                 n_pts_per_ray=config.model.latent_res,
-                                                 min_depth=config.render.min_depth,
-                                                 max_depth=config.render.max_depth)
-        self.rayMarcher_feat = EmissionAbsorptionRaymarcher()
-        self.renderer_feat = VolumeRenderer(raysampler=self.raySampler_feat, raymarcher=self.rayMarcher_feat)
+        if config.model.render_feat_raw:
+            self.raySampler_feat = NDCGridRaysampler(image_width=self.feat_res,
+                                                    image_height=self.feat_res,
+                                                    n_pts_per_ray=config.model.latent_res,
+                                                    min_depth=config.render.min_depth,
+                                                    max_depth=config.render.max_depth)
+            self.rayMarcher_feat = EmissionAbsorptionRaymarcher()
+            self.renderer_feat = VolumeRenderer(raysampler=self.raySampler_feat, raymarcher=self.rayMarcher_feat)
 
 
-    def forward(self, camera_params, features, densities, render_depth=False, pe_volume=None):
+    def forward(self, camera_params_in, features, densities, render_depth=False, feat3d_raw=None):
         '''
         camera_params: pytorch3d perspective camera, parameters in batch size B
         features: [B,C,D,H,W]
@@ -57,6 +60,7 @@ class VolRender(nn.Module):
         '''
         B,C,D,H,W = features.shape
         device = features.device
+        camera_params = copy.deepcopy(camera_params_in)
 
         # parse camera parameters considering render downsample rate
         camera_params['K'] /= self.render_down_rate
@@ -83,6 +87,7 @@ class VolRender(nn.Module):
             rendered_imgs, rendered_mask, rendered_depth = rendered.split([C,1,1], dim=-1)
             rendered_depth = rendered_depth.permute(0,3,1,2).contiguous()
             rendered_depth = F.upsample(rendered_depth, size=[self.img_input_res]*2, mode='bilinear')
+        #__import__('pdb').set_trace()
         rendered_imgs = rendered_imgs.permute(0,3,1,2).contiguous().float()
         rendered_mask = rendered_mask.permute(0,3,1,2).contiguous()
         rendered_imgs = self.upsample_conv(rendered_imgs)
@@ -100,23 +105,26 @@ class VolRender(nn.Module):
         if render_depth:
             results['depth']: render_depth  # [B,1,h,w]
 
-        # render 3D pe volume to 2D
-        if self.config.model.render_pe:
+        # render raw 3D volume to 2D
+        if self.config.model.render_feat_raw and self.training and torch.is_tensor(feat3d_raw):
             camera_params['K'] /= self.render_feat_down_rate
             camera_params['K'][:,-1,-1] = 1.0
             cameras_feat = cameras_from_opencv_projection(R=camera_params['R'],
-                                                     tvec=camera_params['T'], 
-                                                     camera_matrix=camera_params['K'],
-                                                     image_size=torch.tensor([self.feat_res]*2).unsqueeze(0).repeat(B,1)).to(device)
+                                                          tvec=camera_params['T'], 
+                                                          camera_matrix=camera_params['K'],
+                                                          image_size=torch.tensor([self.feat_res]*2).unsqueeze(0).repeat(B,1)).to(device)
             single_voxel_size_feat = self.volume_physical_size / self.config.model.latent_res
-            densities_feat = F.interpolate(densities, [self.config.model.latent_res]*3, mode='bilinear')
-            volume_pe = Volumes(densities=densities_feat,
-                                features=pe_volume,
-                                voxel_size=single_voxel_size_feat)
-            rendered = self.renderer_feat(cameras=cameras_feat, volumes=volume_pe, render_depth=False)[0]
-            rendered_pe, _ = rendered.split([self.config.model.backbone_out_dim,1], dim=-1)
-            rendered_pe = rendered_pe.permute(0,3,1,2).contiguous().float()
-            results['pe2d'] = rendered_pe
+            densities_feat = F.interpolate(densities, [self.config.model.latent_res]*3, mode='trilinear')
+            #__import__('pdb').set_trace()
+            feat3d_raw = feat3d_raw.unsqueeze(1).repeat(1,self.config.dataset.num_frame,1,1,1,1)
+            feat3d_raw = rearrange(feat3d_raw, 'b t c d h w -> (b t) c d h w')
+            volume_feat = Volumes(densities=densities_feat,
+                                  features=feat3d_raw,
+                                  voxel_size=single_voxel_size_feat)
+            rendered = self.renderer_feat(cameras=cameras_feat, volumes=volume_feat, render_depth=False)[0]
+            rendered_feat, _ = rendered.split([self.config.model.backbone_out_dim,1], dim=-1)
+            rendered_feat = rendered_feat.permute(0,3,1,2).contiguous().float()
+            results['features_2d_render'] = rendered_feat   # [B,c',h',w']
 
         return results
 
@@ -139,3 +147,4 @@ def render_make_upconv_layers(config, render_down_rate):
             nn.LeakyReLU(inplace=True),
             nn.Conv2d(8, 3, kernel_size=k_size, stride=1, padding=pad_size),])
     upsample_conv = nn.Sequential(*nn.ModuleList(upsample_conv))
+    return upsample_conv

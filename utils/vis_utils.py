@@ -104,7 +104,7 @@ def vis_seq(vid_clips, vid_masks, recon_clips, recon_masks, iter_num, output_dir
                 ax.imshow(np.abs(depth - rendered_depth), cmap='magma', vmin=0, vmax=2)
                 ax.axis('off')
         
-        plt.savefig(save_name, dpi=200)
+        plt.savefig(save_name, dpi=100)
         plt.close('all')
 
 

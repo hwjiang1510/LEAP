@@ -174,10 +174,6 @@ class GSO(Dataset):
         imgs = torch.stack(imgs)     # [t,c,h,w]
         masks = torch.stack(masks)   # [t,1,h,w]
         depths = torch.stack(depths) # [t,1,h,w]
-
-        if self.config.dataset.mask_images:
-            assert masks is not None
-            imgs *= masks
         
         # get camera intrinsics
         K = torch.tensor(meta['camera']['K'])               # f and p are normalized by image size, [3,3]
@@ -247,7 +243,11 @@ class GSO(Dataset):
             #'seen_flag': seen_flag,
         }
 
-        if self.split == 'test':
+        if self.config.train.use_uncanonicalized_pose:
+            sample['cam_extrinsics_cv2_canonicalized'] = cam_extrinsics_cv2
+            sample['cam_poses_cv2'] = cam_poses_cv2
+
+        if self.split != 'train':
             sample['seen_flag'] = seen_flag
 
         return sample
@@ -275,6 +275,9 @@ class GSO(Dataset):
         rgb = np.asarray(rgb).transpose((2,0,1)) / 255.0                            # [3,H,W], in range [0,1]
         mask = np.asarray(mask)[:,:,np.newaxis].transpose((2,0,1))                  # [1,H,W], in range [0,1]
         
+        if self.config.dataset.mask_images:
+            rgb *= mask
+
         if self.config.train.normalize_img:
             normalization = transforms.Compose([
                 transforms.Normalize(mean=torch.tensor([0.4850, 0.4560, 0.4060]), std=torch.tensor([0.2290, 0.2240, 0.2250])),

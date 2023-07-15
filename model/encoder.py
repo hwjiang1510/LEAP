@@ -68,20 +68,21 @@ def make_encoder_transformer_layers(config, in_dim):
     transformers_cross, transformers_self = [], []
     num_layers = config.model.encoder_layers
     mlp_ratio = 4.0
+    norm_first = config.model.norm_first
 
     if not config.model.use_flash_attn:
         latent_dim = int(mlp_ratio * in_dim)
         for _ in range(num_layers):
             cross_attn = TransformerCrossAttnLayer(d_model=in_dim, nhead=8, dim_feedforward=latent_dim, 
-                                                   dropout=0.0, activation='gelu', batch_first=True)
+                                                   dropout=0.0, activation='gelu', batch_first=True, norm_first=norm_first)
             self_attn = torch.nn.TransformerEncoderLayer(d_model=in_dim, nhead=8, dim_feedforward=latent_dim,
-                                                         dropout=0.0, activation='gelu', batch_first=True)
+                                                         dropout=0.0, activation='gelu', batch_first=True, norm_first=norm_first)
             transformers_cross.append(cross_attn)
             transformers_self.append(self_attn)
     else:
         for _ in range(num_layers):
-            cross_attn = FlashCrossAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=False)
-            self_attn = FlashSelfAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=False)
+            cross_attn = FlashCrossAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=norm_first)
+            self_attn = FlashSelfAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=norm_first)
             transformers_cross.append(cross_attn)
             transformers_self.append(self_attn)
 

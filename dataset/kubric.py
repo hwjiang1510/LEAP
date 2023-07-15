@@ -394,9 +394,13 @@ class Kubric(Dataset):
             'cam_poses_cv2': cam_poses_cv2,                                         # uncanonicalized camera poses in cv2
             'cam_poses_cv2_canonicalized': cam_poses_cv2_canonicalized,             # canonicalized camera poses in cv2
             'cam_poses_rel_cv2': cam_poses_rel_cv2,                                 # relative camera poses in cv2
-            'cam_poses_rel_every2_cv2': cam_poses_rel_every2_cv2,                    # relative camera poses between every two frame
+            'cam_poses_rel_every2_cv2': cam_poses_rel_every2_cv2,                   # relative camera poses between every two frame
             'seq_name': seq_name,
         }
+
+        if self.config.train.use_uncanonicalized_pose:
+            sample['cam_extrinsics_cv2_canonicalized'] = cam_extrinsics_cv2
+            sample['cam_poses_cv2'] = cam_poses_cv2
 
         if self.split != 'train':
             sample['seen_flag'] = seen_flag

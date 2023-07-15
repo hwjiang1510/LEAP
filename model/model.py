@@ -32,7 +32,8 @@ class FORGE_V2(nn.Module):
         self.encoder = CrossViewEncoder(config, in_dim=self.backbone_out_dim, in_res=self.feat_res)
 
         # build p.e. transformer
-        self.neck = PETransformer(config, in_dim=self.backbone_out_dim, in_res=self.feat_res)
+        if config.model.use_neck:
+            self.neck = PETransformer(config, in_dim=self.backbone_out_dim, in_res=self.feat_res)
         
         # build 2D-3D lifting
         self.lifting = lifting(config, self.backbone_out_dim)
@@ -51,38 +52,14 @@ class FORGE_V2(nn.Module):
         else:
             raise NotImplementedError('unknown image backbone')
         return out
-    
-    def extract_feature2(self, x, return_h_w=False):
-        b, _, h_origin, w_origin = x.shape
-        out = self.dino_s.get_intermediate_layers(x, n=1)[0]
-        h, w = int(h_origin / self.dino_s.patch_embed.patch_size[0]), int(w_origin / self.dino_s.patch_embed.patch_size[1])
-        dim = out.shape[-1]
-        out = out.reshape(b, h, w, dim).permute(0,3,1,2)
-        return out
-    
-    def sample_views(self, features):
-        '''
-        features: in [b,t,c,h,w]
-        '''
-        if not self.config.train.use_rand_view:
-            return features
-        else:
-            input_num_views = self.config.dataset.num_frame
-            # min_num_views = self.config.train.min_rand_view
-            # selected_num_views = random.choice(list(range(min_num_views, input_num_views+1)))
-            # selected_views = random.sample(list(range(input_num_views)), selected_num_views)
-            # selected_views = sorted(selected_views)
-            starting_view = random.choice([0,1])
-            selected_views = list(range(starting_view, input_num_views))
-            features = features[:,selected_views]
-            return features
 
 
     def forward(self, sample, device, return_neural_volume=False, render_depth=False):
         '''
         imgs in shape [b,t,C,H,W]
         '''
-        imgs = sample['images'].to(device)
+        t_input = self.config.dataset.num_frame
+        imgs = sample['images'].to(device)[:,:t_input]
         b,t = imgs.shape[:2]
         
         # 2D per-view feature extraction
@@ -97,19 +74,25 @@ class FORGE_V2(nn.Module):
 
         # cross-view feature refinement
         features = self.encoder(features)                                       # [b,t,c,h,w]
+        #print('features', features.mean().item(), features.var().item(), features.min().item(), features.max().item() )
 
         # transform 2D p.e. and added to features
-        features = self.neck(features)                                          # [b,t,c,h,w]
-
-        # only use a subset of views
-        # if self.training:
-        #     features = self.sample_views(features)
+        if self.config.model.use_neck:
+            pe2d = self.neck(features)                                          # [b,t,c,h,w]
+            #print('pe2d', pe2d.mean().item(), pe2d.var().item(), pe2d.min().item(), pe2d.max().item())
+        else:
+            pe2d = None
 
         # 2D-3D lifting
-        features_3d = self.lifting(features)                                    # [b,c=128,D,H,W]
+        features_3d_raw, features_3d = self.lifting(features, pe2d)               # [b,c=768,D=16,H,W], [b,c=128,D,H,W]
 
         # rendering
-        results = self.render_module(features_3d, sample, return_neural_volume, render_depth)
+        results = self.render_module(features_3d, sample, return_neural_volume, render_depth, features_3d_raw)
+
+        # return 2D features if necessary
+        if self.config.model.render_feat_raw and self.training:
+            #results['features_2d'] = rearrange(features, 'b t c h w -> (b t) c h w')
+            results['features_2d'] = rearrange(pe2d, 'b t c h w -> (b t) c h w')
         
         return results
 

@@ -7,6 +7,8 @@ import warnings
 import torch.nn as nn
 
 from dataset.kubric import Kubric
+from dataset.gso import GSO
+from dataset.omniobject3d import Omniobject3D
 
 
 def get_optimizer(config, model):
@@ -49,6 +51,10 @@ def get_dataset(config, split='train'):
     name = config.dataset.name
     if name == 'kubric':
         data = Kubric(config, split=split)
+    elif name == 'gso':
+        data = GSO(config, split=split)
+    elif name == 'omniobject3d':
+        data = Omniobject3D(config, split=split)
     else:
         raise NotImplementedError('not implemented dataset')
     return data

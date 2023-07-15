@@ -124,6 +124,7 @@ def main():
     
     start_ep = ep_resume if ep_resume is not None else 0
     end_ep = int(config.train.total_iteration / len(train_loader)) + 1
+    val_interval = 15 if config.dataset.name == 'omniobject3d' else 5
 
     # train
     for epoch in range(start_ep, end_ep):
@@ -154,7 +155,7 @@ def main():
                     }, 
                     checkpoint=output_dir, filename="cpt_last.pth.tar")
             
-        if epoch % 5 == 0:
+        if epoch % val_interval == 0:
             #print('Doing validation')
             cur_psnr, return_dict = evaluation(config,
                                                loader=val_loader,

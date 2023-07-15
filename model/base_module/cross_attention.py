@@ -42,7 +42,7 @@ class TransformerCrossAttnLayer(nn.Module):
             state['activation'] = F.relu
         super(TransformerCrossAttnLayer, self).__setstate__(state)
 
-    def forward(self, tgt: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None,
+    def forward(self, tgt: Tensor, memory: Tensor, value: Optional[Tensor] = None, tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None,
                 tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         r"""Pass the inputs (and mask) through the decoder layer.
 
@@ -59,20 +59,23 @@ class TransformerCrossAttnLayer(nn.Module):
         """
 
         x = tgt
+        key = memory
+        if not torch.is_tensor(value):
+            value = memory
         if self.norm_first:
-            x = x + self._mha_block(self.norm2(x), memory, memory_mask, memory_key_padding_mask)
+            x = x + self._mha_block(self.norm2(x), key, value, memory_mask, memory_key_padding_mask)
             x = x + self._ff_block(self.norm3(x))
         else:
-            x = self.norm2(x + self._mha_block(x, memory, memory_mask, memory_key_padding_mask))
+            x = self.norm2(x + self._mha_block(x, key, value, memory_mask, memory_key_padding_mask))
             x = self.norm3(x + self._ff_block(x))
 
         return x
 
 
     # multihead attention block
-    def _mha_block(self, x: Tensor, mem: Tensor,
+    def _mha_block(self, x: Tensor, key: Tensor, value: Tensor,
                    attn_mask: Optional[Tensor], key_padding_mask: Optional[Tensor]) -> Tensor:
-        x = self.multihead_attn(x, mem, mem,
+        x = self.multihead_attn(x, key, value,
                                 attn_mask=attn_mask,
                                 key_padding_mask=key_padding_mask,
                                 need_weights=False)[0]

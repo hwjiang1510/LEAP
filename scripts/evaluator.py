@@ -178,8 +178,12 @@ def eval_nvs(config, nvs_results, sample, metrics, lpips_vgg, device):
 
 def generate_360_vis(config, model, neural_volume, sample, device, batch_idx, output_dir):
     num_views_all = 4 * 7
-    elev = torch.linspace(0, 0, num_views_all)
-    azim = torch.linspace(0, 360, num_views_all) + 180
+    if config.train.use_uncanonicalized_pose:
+        elev = torch.linspace(0, 0, num_views_all) + 45
+        azim = torch.linspace(0, 360, num_views_all)
+    else:
+        elev = torch.linspace(0, 0, num_views_all)
+        azim = torch.linspace(0, 360, num_views_all) + 180
     NVS_R_all, NVS_T_all = look_at_view_transform(dist=config.render.camera_z, elev=elev, azim=azim)  # [N=28,3,3], [N,3]
     NVS_pose_all = torch.cat([NVS_R_all, NVS_T_all.view(-1,3,1)], dim=-1).to(device)  # [N,3,4]
 

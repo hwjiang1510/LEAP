@@ -59,13 +59,10 @@ class PETransformer(nn.Module):
         pe_noncanonical = []
         for i in range(t-1):
             x_cur = x[:,i+1]                                                # [b,c,h,w]
-        #for i in range(t):
-        #     x_cur = x[:,i] 
             x_cur = rearrange(x_cur, 'b c h w -> b (h w) c')                # [b,h*w,c]
             pe_cur = self.transform_pe(x_cur, x_canonical, pe_canonical)    # [b,c,h,w]
             pe_noncanonical.append(pe_cur)
         pe_noncanonical = torch.stack(pe_noncanonical, dim=1)               # [b,t-1,c,h,w]
-        #pe = pe_noncanonical
 
         pe = torch.cat([pe_canonical.unsqueeze(1), pe_noncanonical], dim=1) # [b,t,c,h,w]
 
@@ -80,25 +77,27 @@ class PETransformer(nn.Module):
 
         pe = self.pe_transformer(pe)
         pe = rearrange(pe, 'b (t h w) c -> b t c h w', t=t, h=h, w=w)
-        x = x + pe
-        return x
+        return pe
+        # x = x + pe
+        # return x
 
 
 def neck_make_transformer_layers(config, in_dim):
     pe_transformer = []
     num_layers = config.model.neck_layers
     mlp_ratio = 4.0
+    norm_first = config.model.norm_first
 
     if not config.model.use_flash_attn:
         latent_dim = int(mlp_ratio * in_dim)
         pe_transformer = nn.Sequential(*[
             torch.nn.TransformerEncoderLayer(d_model=in_dim, nhead=8, dim_feedforward=latent_dim,
-                                             dropout=0.0, activation='gelu', batch_first=True)
+                                             dropout=0.0, activation='gelu', batch_first=True, norm_first=norm_first)
             for _ in range(num_layers)    
         ])
     else:
         pe_transformer = nn.Sequential(*[
-            FlashSelfAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=False)
+            FlashSelfAttnLayer(d_model=in_dim, n_head=12, mlp_ratio=mlp_ratio, norm_first=norm_first)
             for _ in range(num_layers)    
         ])
     return pe_transformer

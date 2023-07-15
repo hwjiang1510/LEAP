@@ -31,6 +31,7 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
         time_meters.add_loss_value('Data time', time.time() - batch_end)
         end = time.time()
 
+        #torch.autograd.set_detect_anomaly(True)
         with autocast(enabled=config.train.use_amp, dtype=torch.bfloat16):
             results = model(sample, device)
             time_meters.add_loss_value('Prediction time', time.time() - end)
@@ -45,6 +46,7 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
             total_loss = total_loss / config.train.accumulation_step
 
         if config.train.use_amp:
+            #with torch.autograd.detect_anomaly():
             scaler.scale(total_loss).backward()
             # for name, param in model.named_parameters():
             #     if param.grad is not None:
@@ -94,10 +96,17 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
             logger.info(msg)
 
         if iter_num % config.vis_freq == 0 and rank == 0:
-            vis_utils.vis_seq(vid_clips=sample['images'],
-                            vid_masks=sample['fg_probabilities'],
-                            recon_clips=results['rgb'].reshape(sample['images'].shape),
-                            recon_masks=results['mask'].reshape(sample['fg_probabilities'].shape),
+            if not config.dataset.train_all_frame:
+                vid_clips = sample['images']
+                vid_masks = sample['fg_probabilities']
+            else:
+                t_input = config.dataset.num_frame
+                vid_clips = sample['images'][:,t_input:]
+                vid_masks = sample['fg_probabilities'][:,t_input:]
+            vis_utils.vis_seq(vid_clips=vid_clips,
+                            vid_masks=vid_masks,
+                            recon_clips=results['rgb'].reshape(vid_clips.shape),
+                            recon_masks=results['mask'].reshape(vid_masks.shape),
                             iter_num=iter_num,
                             output_dir=output_dir,
                             subfolder='train_seq',

@@ -10,11 +10,16 @@ def get_losses(config, iter_num, pred, sample, perceptual_loss=None):
     rendered_imgs, rendered_masks = pred['rgb'], pred['mask']   # [b*t,c,h,w]
     device = rendered_imgs.device
 
-    imgs = sample['images'].to(device)                          # [b,t,c,h,w]
-    masks = sample['fg_probabilities'].to(device)
+    if not config.dataset.train_all_frame:
+        imgs = sample['images'].to(device)                          # [b,t,c,h,w]
+        masks = sample['fg_probabilities'].to(device)
+    else:
+        t_input = config.dataset.num_frame
+        imgs = sample['images'][:,t_input:].to(device)
+        masks = sample['fg_probabilities'][:,t_input:].to(device)
     b,t,c,h,w = imgs.shape
-    target_imgs = imgs.view(b*t,c,h,w)
-    target_masks = masks.view(b*t,1,h,w)
+    target_imgs = imgs.reshape(b*t,c,h,w)
+    target_masks = masks.reshape(b*t,1,h,w)
 
     loss_rgb = F.mse_loss(rendered_imgs, target_imgs)
     loss_mask = F.mse_loss(rendered_masks, target_masks)
@@ -32,30 +37,30 @@ def get_losses(config, iter_num, pred, sample, perceptual_loss=None):
         'weight_perceptual': config.loss.weight_perceptual
     })
 
-    if config.model.render_pe:
-        loss_pe = compute_pe_loss(config, sample, pred['pe2d_pred'], pred['pe2d_render'])
+    if config.model.render_feat_raw:
+        loss_feat_render = compute_feat_loss(sample, pred, device)
         losses.update({
-            'loss_pe': loss_pe,
-            'weight_pe': config.loss_weight_pe
+            'loss_feat_render': loss_feat_render,
+            'weight_feat_render': config.loss.weight_feat_render
         })
 
     return losses
 
 
-def compute_pe_loss(config, sample, pe_pred, pe_render, device):
+def compute_feat_loss(sample, pred, device):
     '''
     pe_pred and pe_render: in shape [b*t,c,h,w]
     '''
     b,t,c,h,w = sample['images'].shape
-    device = pe_pred.device
-    feat_size = 16
-    masks = sample['fg_probabilities'].to(device)    # [b,t,h,w]
-    masks = masks.reshape(b*t,1,h,w)
-    masks_down = F.interpolate(masks, [feat_size]*2, mode='nearest')
+    features_2d = pred['features_2d'].detach()                          # [b*t,c',h',w']
+    features_2d_render = pred['features_2d_render']
 
-    pe_target = pe_render.detach() * masks_down.float()
-    pe_pred = pe_pred * masks_down.float()
-    
-    loss_pe = F.mse_loss(pe_pred, pe_target)
-    return loss_pe
+    h2, w2 = features_2d.shape[-2:]
+    masks = sample['fg_probabilities'].to(device).reshape(b*t,1,h,w)    # [b,t,h,w]
+    masks_down = F.interpolate(masks, [h2, w2], mode='nearest')         # [b*t,1,h',w']
+
+    loss_feat_render = F.mse_loss(features_2d_render * masks_down.float(),
+                                  features_2d * masks_down.float())
+
+    return loss_feat_render
 
