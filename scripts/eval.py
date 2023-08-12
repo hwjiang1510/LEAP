@@ -191,6 +191,18 @@ def generate_360_vis(config, model, neural_volume, sample, device, batch_idx, ou
     else:
         elev = torch.linspace(0, 0, num_views_all)
         azim = torch.linspace(0, 360, num_views_all) + 180
+    if config.dataset.name == 'dtu':
+        elev, azim = [], []
+        elev.append(torch.linspace(0, 10, num_views_all // 4))
+        azim.append(torch.linspace(0, 15, num_views_all // 4) + 180)
+        elev.append(torch.linspace(10, 0, num_views_all // 4))
+        azim.append(torch.linspace(15, 30, num_views_all // 4) + 180)
+        elev.append(torch.linspace(0, -10, num_views_all // 4))
+        azim.append(torch.linspace(30, 15, num_views_all // 4) + 180)
+        elev.append(torch.linspace(-10, 0, num_views_all // 4))
+        azim.append(torch.linspace(15, 0, num_views_all // 4) + 180)
+        elev = torch.cat(elev)
+        azim = torch.cat(azim)
     NVS_R_all, NVS_T_all = look_at_view_transform(dist=config.render.camera_z, elev=elev, azim=azim)  # [N=28,3,3], [N,3]
     NVS_pose_all = torch.cat([NVS_R_all, NVS_T_all.view(-1,3,1)], dim=-1).to(device)  # [N,3,4]
 

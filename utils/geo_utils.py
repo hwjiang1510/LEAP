@@ -207,7 +207,7 @@ def mat2quat_transform(rotation_matrix, eps=1e-6):
     return q
 
 
-def transform_points(points, T):
+def transform_points(points, RT):
     '''
     points: in shape [N,3]
     T: transformation matrix in shape [3, 4]

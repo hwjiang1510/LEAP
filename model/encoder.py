@@ -26,9 +26,11 @@ class CrossViewEncoder(nn.Module):
         x in shape [b,t,c,h,w]
         '''
         b,t,c,h,w = x.shape
+        #__import__('pdb').set_trace()
 
         # add 2D positional embedding (same for each image)
-        x = x + self.pixel_emb.unsqueeze(0)                             # [b,t,c,h,w]
+        w_h_diff_half = (w - h) // 2
+        x = x + self.pixel_emb.unsqueeze(0)[:,:,:,int(w_h_diff_half):int(w-w_h_diff_half),:w]                # [b,t,c,h,w]
         # add camera ID embedding (different between images, same for all pixels in one image)
         cam_emb = self.cam_emb[:t].repeat(1,1,h,w).unsqueeze(0)
         x = x + cam_emb                                                 # [b,t,c,h,w]

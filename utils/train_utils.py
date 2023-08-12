@@ -9,6 +9,8 @@ import torch.nn as nn
 from dataset.kubric import Kubric
 from dataset.gso import GSO
 from dataset.omniobject3d import Omniobject3D
+from dataset.objaverse import Objaverse
+from dataset.dtu import DTU
 
 
 def get_optimizer(config, model):
@@ -55,6 +57,10 @@ def get_dataset(config, split='train'):
         data = GSO(config, split=split)
     elif name == 'omniobject3d':
         data = Omniobject3D(config, split=split)
+    elif name == 'objaverse':
+        data = Objaverse(config, split=split)
+    elif name == 'dtu':
+        data = DTU(config, split=split)
     else:
         raise NotImplementedError('not implemented dataset')
     return data
@@ -94,10 +100,29 @@ def resume_training(model, optimizer, schedular, scaler, output_dir, cpt_name='c
         # load data
         best_psnr = checkpoint['best_psnr'] if 'best_psnr' in checkpoint.keys() else 0.0
 
+        del checkpoint, state_dict
+
         return model, optimizer, schedular, scaler, start_epoch, best_psnr
     else:
         raise ValueError("=> no checkpoint found at '{}'".format(output_dir))
     
+
+def load_pretrain(model, cpt_path):
+    checkpoint = torch.load(cpt_path, map_location=torch.device('cpu'))
+    # load model
+    if "module" in list(checkpoint["state_dict"].keys())[0]:
+        state_dict = {key.replace('module.',''): item for key, item in checkpoint["state_dict"].items()}
+    else:
+        state_dict = checkpoint["state_dict"]
+    missing_states = set(model.state_dict().keys()) - set(state_dict.keys())
+    if len(missing_states) > 0:
+        warnings.warn("Missing keys ! : {}".format(missing_states))
+    model.load_state_dict(state_dict, strict=True)
+
+    del checkpoint, state_dict
+    return model
+
+
 def save_checkpoint(state, checkpoint="checkpoint", filename="checkpoint.pth.tar"):
     filepath = os.path.join(checkpoint, filename)
     torch.save(state, filepath)

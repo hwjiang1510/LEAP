@@ -22,6 +22,7 @@ config.dataset.name = 'kubric'
 config.dataset.category = 'general'
 config.dataset.task = 'multisequence'
 config.dataset.img_size = 512
+config.dataset.img_size_height = 0
 config.dataset.img_size_render = 256
 config.dataset.num_frame = 5
 config.dataset.frame_interval = 5
@@ -94,6 +95,7 @@ config.train.use_amp = False
 config.train.use_rand_view = False
 config.train.min_rand_view = 3
 config.train.use_uncanonicalized_pose = False
+config.train.pretrain_path = ''
 
 
 # test config

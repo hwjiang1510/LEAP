@@ -127,19 +127,11 @@ class Omniobject3D(Dataset):
             
     
     def __len__(self):
-        if self.split in ['train', 'val']:
-            num_smaple = len(self.seq_names)
-        elif self.split == 'test':
-            # each instance has 100 views, split into 10 groups, 5/5 for input/target
-            num_smaple = len(self.seq_names) * 10
-        return num_smaple
+        return len(self.seq_names)
     
 
     def __getitem__(self, idx):
-        if self.split in ['train', 'val']:
-            seq_name = self.seq_names[idx]
-        elif self.split == 'test':
-            seq_name = self.seq_names[idx // 10]
+        seq_name = self.seq_names[idx]
         category_name = seq_name[:-4]
         seq_path = os.path.join(self.root, category_name, seq_name, 'render')
 
@@ -170,13 +162,8 @@ class Omniobject3D(Dataset):
         # get image names to load
         if self.split == 'train':
             chosen_index = random.sample(range(len_seq), self.num_frames_per_seq)
-        elif self.split == 'val':
+        else:
             chosen_index = list(range(self.num_frames_per_seq))
-        elif self.split == 'test':
-            remainder = idx % 10
-            starting_idx = remainder * 10
-            chosen_index = list(range(self.num_frames_per_seq))
-            chosen_index = [it + starting_idx for it in chosen_index]
         
         # load image and mask
         chosen_rgb_files = [rgb_files[it] for it in chosen_index]        
@@ -239,10 +226,10 @@ class Omniobject3D(Dataset):
         file_path = os.path.join(seq_path, file_name)
         img_pil = Image.open(file_path)
         img_np = np.asarray(img_pil)
-        # try:
-        #     mask = Image.fromarray((img_np[:,:,3] > 0).astype(float))
-        # except:
-        mask = Image.fromarray(np.logical_or(img_np[:,:,0]>0,
+        try:
+            mask = Image.fromarray((img_np[:,:,3] > 0).astype(float))
+        except:
+            mask = Image.fromarray(np.logical_or(img_np[:,:,0]>0,
                                                   img_np[:,:,1]>0,
                                                   img_np[:,:,2]>0).astype(float))
 

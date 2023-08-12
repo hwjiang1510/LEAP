@@ -24,13 +24,20 @@ class VolRender(nn.Module):
         self.render_down_rate = self.img_input_res // self.img_render_res
         self.feat_res = feat_res    # used for render p.e. (image features)
         self.render_feat_down_rate = self.img_render_res // self.feat_res
+        if config.dataset.name == 'dtu':
+            self.img_input_res_height = config.dataset.img_size_height
+            self.img_render_res_height = self.img_input_res_height // self.render_down_rate
+        else:
+            self.img_input_res_height = self.img_input_res
+            self.img_render_res_height = self.img_render_res
+        #__import__('pdb').set_trace()
 
         # neural volume physical world settings
         self.volume_physical_size = config.render.volume_size
 
         # build image renderer
         self.raySampler = NDCGridRaysampler(image_width=self.img_render_res,
-                                            image_height=self.img_render_res,
+                                            image_height=self.img_render_res_height,
                                             n_pts_per_ray=config.render.n_pts_per_ray,
                                             min_depth=config.render.min_depth,
                                             max_depth=config.render.max_depth)
@@ -63,19 +70,28 @@ class VolRender(nn.Module):
         camera_params = copy.deepcopy(camera_params_in)
 
         # parse camera parameters considering render downsample rate
+        #__import__('pdb').set_trace()
         camera_params['K'] /= self.render_down_rate
         camera_params['K'][:,-1,-1] = 1.0
         cameras = cameras_from_opencv_projection(R=camera_params['R'],
                                                  tvec=camera_params['T'], 
                                                  camera_matrix=camera_params['K'],
-                                                 image_size=torch.tensor([self.img_render_res]*2).unsqueeze(0).repeat(B,1)).to(device)
+                                                 image_size=torch.tensor([self.img_render_res_height, self.img_render_res]).unsqueeze(0).repeat(B,1)).to(device)
         
         # parse neural volume physical world settings
-        single_voxel_size = self.volume_physical_size / D
-        #__import__('pdb').set_trace()
-        volume = Volumes(densities=densities,
-                         features=features,
-                         voxel_size=single_voxel_size)
+        if self.config.dataset.name == 'dtu':
+            single_voxel_size = self.volume_physical_size / D
+            single_voxel_size = [single_voxel_size, single_voxel_size, single_voxel_size]  # [width, height, depth]
+            translation = [0,0,0]   # [+left, +up, +far]
+            volume = Volumes(densities=densities,
+                            features=features,
+                            voxel_size=single_voxel_size,
+                            volume_translation=translation)
+        else:
+            single_voxel_size = self.volume_physical_size / D
+            volume = Volumes(densities=densities,
+                            features=features,
+                            voxel_size=single_voxel_size)
         
         # perform neural rendering
         rendered = self.renderer(cameras=cameras, volumes=volume, render_depth=render_depth)[0]  # [B,H,W,C+1]
@@ -96,7 +112,8 @@ class VolRender(nn.Module):
         rendered_imgs = F.relu(rendered_imgs)
         if self.config.train.normalize_img:
             rendered_imgs = normalize(rendered_imgs)
-        rendered_mask = F.upsample(rendered_mask, size=[self.img_input_res]*2, mode='bilinear')
+        #__import__('pdb').set_trace()
+        rendered_mask = F.upsample(rendered_mask, size=[self.img_input_res_height, self.img_input_res], mode='bilinear')
 
         results = {
             'rgb': rendered_imgs,       # [B=b*t,3,h,w]

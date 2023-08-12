@@ -80,6 +80,10 @@ def main():
                                                              num_warmup_steps=config.train.schedular_warmup_iter,
                                                              num_training_steps=config.train.total_iteration)
     scaler = torch.cuda.amp.GradScaler()
+
+    # load pre-trained model
+    if len(config.train.pretrain_path) > 0:
+        model = train_utils.load_pretrain(model, config.train.pretrain_path)
     
     # resume training
     best_psnr = 0.0
@@ -124,8 +128,16 @@ def main():
     
     start_ep = ep_resume if ep_resume is not None else 0
     end_ep = int(config.train.total_iteration / len(train_loader)) + 1
-    val_interval = 15 if config.dataset.name == 'omniobject3d' else 5
-
+    
+    if config.dataset.name == 'omniobject3d':
+        val_interval = 15
+    elif config.dataset.name == 'kubric':
+        val_interval = 5
+    elif config.dataset.name == 'objaverse':
+        val_interval = 1
+    elif config.dataset.name == 'dtu':
+        val_interval = 2
+        
     # train
     for epoch in range(start_ep, end_ep):
         train_sampler.set_epoch(epoch)
@@ -155,7 +167,7 @@ def main():
                     }, 
                     checkpoint=output_dir, filename="cpt_last.pth.tar")
             
-        if epoch % val_interval == 0:
+        if (epoch % val_interval == 0) and (epoch > 0):
             #print('Doing validation')
             cur_psnr, return_dict = evaluation(config,
                                                loader=val_loader,

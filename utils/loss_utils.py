@@ -20,6 +20,7 @@ def get_losses(config, iter_num, pred, sample, perceptual_loss=None):
     b,t,c,h,w = imgs.shape
     target_imgs = imgs.reshape(b*t,c,h,w)
     target_masks = masks.reshape(b*t,1,h,w)
+    #__import__('pdb').set_trace()
 
     loss_rgb = F.mse_loss(rendered_imgs, target_imgs)
     loss_mask = F.mse_loss(rendered_masks, target_masks)

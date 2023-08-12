@@ -58,6 +58,8 @@ def vis_seq(vid_clips, vid_masks, recon_clips, recon_masks, iter_num, output_dir
     if torch.is_tensor(vid_depths) and torch.is_tensor(recon_depths):
         depth_diff_col = 1
 
+    #__import__('pdb').set_trace()
+
     B = vid_clips.shape[0]
     for i in range(B):
         save_name = os.path.join(output_dir, str(iter_num) + '_' + str(i) + '.jpg')
@@ -127,6 +129,7 @@ def vis_NVS(imgs, masks, img_name, output_dir, inv_normalize=False, subfolder='v
         imgs = 255 * torch.cat([imgs, masks, depths], dim=-1)  # [N,c,h, 3*w]
     else:
         imgs = 255 * torch.cat([imgs, masks], dim=-1)  # [N,c,h, 2*w]
+    imgs = imgs.clip(min=0.0, max=255.0)
         
     frames = [np.uint8(img.permute(1,2,0).numpy()) for img in imgs]  # image in [h,w,c]
     #from IPython import embed; embed()

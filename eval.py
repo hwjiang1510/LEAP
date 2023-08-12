@@ -30,7 +30,8 @@ def parse_args():
         '--local_rank', default=-1, type=int, help='node rank for distributed training')
     parser.add_argument(
         '--cpt', 
-        default='/vision/hwjiang/forge2/output/kubric/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_pose_uncanonical/cpt_best_psnr_29.985246321567754.pth.tar', 
+        #default='/vision/hwjiang/forge2/output/omniobject3d/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-2_rel-pose/cpt_best_psnr_29.21728228794307.pth.tar', 
+        default='output/dtu/train_224/base_res224_lr2x_res32_encoder-1e-5_layer-2-0-4_volume-2.0_iter3k_pretrain-omniobj/cpt_best_psnr_17.932848452595916.pth.tar',
         type=str, help='checkpoint path')
     args, rest = parser.parse_known_args()
     update_config(args.cfg)

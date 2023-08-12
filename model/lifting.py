@@ -6,6 +6,7 @@ from model.base_module.TransformerDecoder import TransformerDecoderLayerPermute
 from model.base_module.flash_attention.transformer import FlashTxDecoderLayer, FlashCrossAttnLayer
 from einops import rearrange
 import math
+from utils.pe_utils import positionalencoding3d
 
 
 class lifting(nn.Module):
@@ -17,6 +18,8 @@ class lifting(nn.Module):
         self.latent_res = config.model.latent_res
         self.latent_emb = nn.parameter.Parameter(
                             (torch.rand(self.latent_res, self.latent_res, self.latent_res, in_dim) * embedding_stdev))
+        #self.latent_pe = embedding_stdev * positionalencoding3d(in_dim, self.latent_res, self.latent_res, self.latent_res)
+        #self.latent_pe_scale = nn.parameter.Parameter(torch.tensor(1.0))
 
         if config.model.use_pe_lifting:
             self.lift_init = lifting_make_init_layer(config, in_dim)
@@ -46,6 +49,7 @@ class lifting(nn.Module):
             pe2d = rearrange(pe2d, 'b t c h w -> b (t h w) c')
         
         latent = rearrange(self.latent_emb, 'd h w c -> (d h w) c').unsqueeze(0).repeat(b,1,1).to(device)  # [b,N=d*h*w,c]
+        #latent += self.latent_pe.unsqueeze(0).to(device) * self.latent_pe_scale.to(device)
         #print('pe3d', latent.mean().item(), latent.var().item(), latent.min().item(), latent.max().item())
         
         if self.config.model.use_pe_lifting and (not self.config.model.use_flash_attn):
