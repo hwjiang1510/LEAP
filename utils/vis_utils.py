@@ -136,6 +136,65 @@ def vis_NVS(imgs, masks, img_name, output_dir, inv_normalize=False, subfolder='v
     imageio.mimsave(save_name, frames, 'GIF', duration=0.1)
 
 
+def vis_nvs_separate(imgs, imgs_gt, instance_name, output_dir, subfolder='test_seq_split', inv_normalize=False):
+    '''
+    imgs: in shape [n,c,h,w] with value range [0,1]
+    '''
+    #breakpoint()
+    output_dir = os.path.join(output_dir, 'visualization', subfolder)
+    os.makedirs(output_dir, exist_ok=True)
+
+    if inv_normalize:
+        imgs = inverse_transform(imgs)
+        imgs_gt = inverse_transform(imgs_gt)
+
+    num_nvs = imgs.shape[0]
+
+    imgs_255 = (imgs * 255).clamp(min=0.0, max=255.0).permute(0,2,3,1).detach().cpu().numpy()   # [n,h,w,c]
+    imgs_gt = (imgs_gt * 255).clamp(min=0.0, max=255.0).permute(0,2,3,1).detach().cpu().numpy()
+
+    for i, img_255 in enumerate(imgs_gt):
+        img_255_uint8 = np.uint8(img_255)
+        os.makedirs(os.path.join(output_dir, instance_name), exist_ok=True)
+        save_path = os.path.join(output_dir, instance_name, '{}_gt.png'.format(i))
+        cv2.imwrite(save_path, img_255_uint8[:,:,::-1])
+
+    for i, img_255 in enumerate(imgs_255):
+        img_255_uint8 = np.uint8(img_255)
+        os.makedirs(os.path.join(output_dir, instance_name), exist_ok=True)
+        save_path = os.path.join(output_dir, instance_name, '{}.png'.format(i+5))
+        cv2.imwrite(save_path, img_255_uint8[:,:,::-1])
+
+
+def save_demo_nvs_results(scene_idx, permutation, nvs_results, output_dir, inv_normalize=False, white_bg=False):
+    imgs, masks = nvs_results
+    #breakpoint()
+    output_dir = os.path.join(output_dir, 'visualization')
+    os.makedirs(output_dir, exist_ok=True)
+
+    img_name = 'scene_{}_permutation_'.format(scene_idx) + '_'.join(map(str, permutation)) + '.gif'
+    save_name = os.path.join(output_dir, img_name)
+
+    imgs = imgs.float().detach().cpu()  # [N,c,h,w]
+    if inv_normalize:
+        imgs = inverse_transform(imgs)
+    imgs = imgs.clip(min=0.0, max=1.0)
+    masks = masks.clip(min=0.0, max=1.0).float().detach().cpu()
+
+    if white_bg:
+        imgs = imgs + (1. - masks)
+
+    masks = masks.float().detach().cpu()  # [N,1,h,w]
+    masks = masks.repeat(1,3,1,1)
+    imgs = 255 * torch.cat([imgs, masks], dim=-1)  # [N,c,h, 2*w]
+    imgs = imgs.clip(min=0.0, max=255.0)
+        
+    frames = [np.uint8(img.permute(1,2,0).numpy()) for img in imgs]  # image in [h,w,c]
+    #frames = [cv2.resize(frame, (1024, 512)) for frame in frames]
+    #from IPython import embed; embed()
+    imageio.mimsave(save_name, frames, 'GIF', duration=0.1)
+
+
 def unnormalize(img):
     '''
     img in [b,t,c,h,w] or [b,c,h,w]

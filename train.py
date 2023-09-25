@@ -13,8 +13,10 @@ import argparse
 import wandb
 import transformers
 
+os.environ["WANDB__SERVICE_WAIT"] = "300"
+
 from config.config import config, update_config
-from model.model import FORGE_V2
+from model.model import LEAP
 from model.external.perceptual_loss import VGGPerceptualLoss
 from utils import dist_utils, exp_utils, train_utils
 from scripts.trainer import train_epoch
@@ -23,7 +25,7 @@ from scripts.evaluator import evaluation
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train FORGE V2')
+    parser = argparse.ArgumentParser(description='Train LEAP')
     parser.add_argument(
         '--cfg', help='experiment configure file name', required=True, type=str)
     parser.add_argument(
@@ -71,7 +73,7 @@ def main():
         wandb_run = None
 
     # get model
-    model = FORGE_V2(config).to(device)
+    model = LEAP(config).to(device)
     perceptual_loss = VGGPerceptualLoss().to(device)
 
     # get optimizer
@@ -83,7 +85,7 @@ def main():
 
     # load pre-trained model
     if len(config.train.pretrain_path) > 0:
-        model = train_utils.load_pretrain(model, config.train.pretrain_path)
+        model = train_utils.load_pretrain(config, model, config.train.pretrain_path)
     
     # resume training
     best_psnr = 0.0

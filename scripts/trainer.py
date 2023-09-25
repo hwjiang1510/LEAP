@@ -9,7 +9,7 @@ import dataclasses
 import torch.distributed as dist
 import itertools
 from torch.cuda.amp import autocast
-from utils import exp_utils, loss_utils, vis_utils
+from utils import exp_utils, loss_utils, vis_utils, train_utils
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,8 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
     for batch_idx, sample in enumerate(loader):
         iter_num = batch_idx + len(loader) * epoch
         sample = exp_utils.dict_to_cuda(sample, device)
+        if config.dataset.augmentation:
+            sample = train_utils.process_data(config, sample, device)
         time_meters.add_loss_value('Data time', time.time() - batch_end)
         end = time.time()
 
@@ -61,6 +63,7 @@ def train_epoch(config, loader, dataset, model, optimizer, scheduler, scaler,
                 scaler.step(optimizer)
                 optimizer.zero_grad()
                 scaler.update()
+                scheduler.step()
         else:
             total_loss.backward()
             # for name, param in model.named_parameters():

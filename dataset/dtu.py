@@ -118,12 +118,15 @@ class DTU(Dataset):
             chosen_index = [25, 5, 15, 35, 45, 20, 0, 10, 30, 40]
             #chosen_index = [0, 10, 20, 30, 40, 5, 15, 25, 35, 45] #[0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
         chosen_rgb_files = [rgb_files[it] for it in chosen_index]
-        imgs = []
+        imgs, masks = [], []
         for rgb_file in chosen_rgb_files:
-            img = self._load_frame(os.path.join(imgs_path, rgb_file))
+            img, mask = self._load_frame(os.path.join(imgs_path, rgb_file))
             img = torch.tensor(img)
+            mask = torch.tensor(mask)
             imgs.append(img)
+            masks.append(mask)
         imgs = torch.stack(imgs)    # [t,c,h,w]
+        masks = torch.stack(masks)  # [t,1,h,w]
 
         # get camera poses and intrinsics
         # poses are defined in OpenGL coordinate (dataloader requires opencv coordinate)
@@ -144,9 +147,6 @@ class DTU(Dataset):
         canonical_pose_cv2 = self.canonical_pose_cv2
         cam_poses_cv2_canonicalized = canonicalize_poses(canonical_pose_cv2, cam_poses_rel_cv2)      # [t,4,4]
         cam_extrinsics_cv2_canonicalized = torch.inverse(cam_poses_cv2_canonicalized)
-
-        # get masks
-        masks = torch.ones(self.num_frames_per_seq, 1, self.image_height, self.image_width) * 0.99
 
         sample = {
             'images': imgs.float(),                                                 # img observation
@@ -173,7 +173,11 @@ class DTU(Dataset):
     def _load_frame(self, file_path):
         img_pil = Image.open(file_path)
         img_pil = img_pil.resize((self.image_width, self.image_height), Image.ANTIALIAS)
-        rgb = np.asarray(img_pil)[:,:,:3].transpose((2,0,1)) / 255.0
+        rgb = np.asarray(img_pil)[:,:,:3].transpose((2,0,1)) / 255.0    # [c,h,w]
+        mask = np.logical_or(rgb[0]>0.05, rgb[1]>0.05, rgb[2]>0.05).astype(float) # [h,w]
+        mask = mask[np.newaxis,:,:]
+        if mask.mean() > 0.999:
+            mask[0,0,0] = 0.0
         
         if self.config.train.normalize_img:
             normalization = transforms.Compose([
@@ -181,9 +185,10 @@ class DTU(Dataset):
             ])
             rgb = torch.from_numpy(rgb)
             rgb = normalization(rgb).numpy()
-        return rgb
+        return rgb, mask
     
     def _load_camera(self, meta, idxs):
+        # the function is from sparf
         intrinsics = []
         poses_c2w = []
         for idx in idxs:

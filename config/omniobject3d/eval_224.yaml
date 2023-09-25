@@ -1,5 +1,5 @@
 exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_no-neck_no-feat-render-loss'
-exp_group: 'forgev2-omniobject3d'
+exp_group: 'leap-omniobject3d'
 output_dir: './output/'
 log_dir: './log'
 workers: 4

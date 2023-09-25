@@ -29,6 +29,7 @@ def evaluation(config, loader, dataset, model,
     with torch.no_grad():
         for batch_idx, sample in enumerate(loader):
             sample = exp_utils.dict_to_cuda(sample, device)
+            print(sample['seq_name'])
 
             all_permutation = generate_permutation(config)
             all_permutation_neural_volume = {}
@@ -47,6 +48,7 @@ def evaluation(config, loader, dataset, model,
                 nvs_results = get_nvs_results(config, model, sample, permutation, device, neural_volume)
                 all_permutation_nvs[str(permu_idx)] = nvs_results
                 time_meters.add_loss_value('Inference time', time.time() - start)
+                # note that the reported time using batchifyied input rather than a for loop, which is slower
 
                 cur_metrics = eval_nvs(config, nvs_results, sample, cur_metrics, lpips_vgg, device)
                 print('idx {}, permute {}'.format(batch_idx, permu_idx), cur_metrics)
@@ -93,6 +95,14 @@ def evaluation(config, loader, dataset, model,
                                 output_dir=output_dir,
                                 subfolder='test_seq',
                                 inv_normalize=config.train.normalize_img)
+            
+            instance_name = sample['seq_name'][0]
+            vis_utils.vis_nvs_separate(imgs=nvs_results[0].squeeze(0),
+                                       imgs_gt=sample['images'][0],
+                                       instance_name=instance_name, 
+                                       output_dir=output_dir,
+                                       subfolder='test_seq_split',
+                                       inv_normalize=config.train.normalize_img)
 
             info = 'idx {}, avg time {}: metrics: {}'.format(batch_idx, time_meters.average_meters['Inference time'].avg, metrics_best_cur)
             logger.info(info)
@@ -107,7 +117,7 @@ def get_neural_volume(config, model, sample, permutation, device):
     imgs = sample['images'][:,:t][:,permutation]
     masks = sample['fg_probabilities'][:,:t][:,permutation]
 
-    sample_inference = {'images': imgs}
+    sample_inference = {'images': imgs[:,:t]}
     features, densities = model(sample_inference, device, return_neural_volume=True)
     return (features, densities)
 

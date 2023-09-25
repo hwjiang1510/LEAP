@@ -6,7 +6,7 @@ from easydict import EasyDict as edict
 config = edict()
 
 # experiment config
-config.exp_name = 'forgev2'
+config.exp_name = 'leap'
 config.exp_group = 'none'
 config.output_dir = './output/'
 config.log_dir = './log'
@@ -27,9 +27,13 @@ config.dataset.img_size_render = 256
 config.dataset.num_frame = 5
 config.dataset.frame_interval = 5
 config.dataset.mask_images = False
-config.dataset.augmentation = False
 config.dataset.train_all_frame = False
 config.dataset.train_shuffle = False
+config.dataset.augmentation = False
+config.dataset.aug_brightness = 0
+config.dataset.aug_contrast = 0
+config.dataset.aug_saturation = 0
+config.dataset.aug_hue = 0
 
 # network config
 config.model = edict()

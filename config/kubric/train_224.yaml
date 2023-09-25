@@ -1,5 +1,5 @@
 exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_pose_uncanonical'
-exp_group: 'forgev2'
+exp_group: 'leap'
 output_dir: './output/'
 log_dir: './log'
 workers: 4
@@ -82,7 +82,7 @@ train:
   use_amp: False
   use_rand_view: False
   min_rand_view: 3
-  use_uncanonicalized_pose: True
+  use_uncanonicalized_pose: False #True
 
 # test config
 test:

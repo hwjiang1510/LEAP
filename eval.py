@@ -14,7 +14,7 @@ import wandb
 import transformers
 
 from config.config import config, update_config
-from model.model import FORGE_V2
+from model.model import LEAP
 from model.external.perceptual_loss import VGGPerceptualLoss
 from utils import dist_utils, exp_utils, train_utils
 from scripts.trainer import train_epoch
@@ -23,15 +23,17 @@ from scripts.eval import evaluation
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train FORGE V2')
+    parser = argparse.ArgumentParser(description='Test LEAP')
     parser.add_argument(
         '--cfg', help='experiment configure file name', required=True, type=str)
     parser.add_argument(
         '--local_rank', default=-1, type=int, help='node rank for distributed training')
     parser.add_argument(
         '--cpt', 
-        #default='/vision/hwjiang/forge2/output/omniobject3d/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-2_rel-pose/cpt_best_psnr_29.21728228794307.pth.tar', 
-        default='output/dtu/train_224/base_res224_lr2x_res32_encoder-1e-5_layer-2-0-4_volume-2.0_iter3k_pretrain-omniobj/cpt_best_psnr_17.932848452595916.pth.tar',
+        #default='output/kubric/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_no-neck_no-feat-render-loss/cpt_last.pth.tar',
+        default='output/omniobject3d/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-2_rel-pose/cpt_best_psnr_29.21728228794307.pth.tar', 
+        #default='output/dtu/train_224/base_res224_lr2x_res32_encoder-1e-5_layer-2-0-4_volume-2.0_iter3k_pretrain-omniobj/cpt_best_psnr_17.932848452595916.pth.tar',
+        #default='output/objaverse/train_224/base_res224_lr1x_percploss-0.2_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-1.4_20k-iter_pretrain-kubric/cpt_best_psnr_25.72105374709138.pth.tar',
         type=str, help='checkpoint path')
     args, rest = parser.parse_known_args()
     update_config(args.cfg)
@@ -63,7 +65,7 @@ def main():
     torch.cuda.set_device(local_rank)
 
     # get model
-    model = FORGE_V2(config).to(device)
+    model = LEAP(config).to(device)
     
     # resume training
     state_dict = torch.load(args.cpt)['state_dict']

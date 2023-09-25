@@ -1,5 +1,5 @@
-exp_name: 'base_res224_lr1x_percploss-0.2_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-2.0_20k-iter'
-exp_group: 'forgev2-objaverse'
+exp_name: 'base_res224_lr1x_percploss-0.2_res32_encoder-nonfix-1e-5_layer-2-0-4_volume-1.4_20k-iter_pretrain-kubric_amp_flash'
+exp_group: 'leap-objaverse'
 output_dir: './output/'
 log_dir: './log'
 workers: 4
@@ -47,12 +47,12 @@ model:
   render_feat_raw: False
   # others
   rot_representation: 'quat'
-  use_flash_attn: False
+  use_flash_attn: True
 
 # render config
 render:
   n_pts_per_ray: 64
-  volume_size: 2.0
+  volume_size: 1.4
   min_depth: 1.0
   max_depth: 2.7
   camera_z: 1.85 # camera pose T_z, range [1.5, 2.2]
@@ -79,10 +79,12 @@ train:
   accumulation_step: 1
   normalize_img: True
   grad_max: 5.0
-  use_amp: False
+  use_amp: True
   use_rand_view: False
   min_rand_view: 3
   use_uncanonicalized_pose: False
+  #pretrain_path: 'output/kubric/train_224/base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_no-neck_no-feat-render-loss/cpt_best_psnr_27.224168484870876.pth.tar'
+  pretrain_path: ''
 
 # test config
 test:

@@ -5,6 +5,10 @@ import numpy as np
 import torch
 import warnings
 import torch.nn as nn
+import kornia
+import kornia.augmentation as K
+from kornia.constants import DataKey
+import copy
 
 from dataset.kubric import Kubric
 from dataset.gso import GSO
@@ -107,19 +111,40 @@ def resume_training(model, optimizer, schedular, scaler, output_dir, cpt_name='c
         raise ValueError("=> no checkpoint found at '{}'".format(output_dir))
     
 
-def load_pretrain(model, cpt_path):
+def load_pretrain(config, model, cpt_path):
     checkpoint = torch.load(cpt_path, map_location=torch.device('cpu'))
     # load model
     if "module" in list(checkpoint["state_dict"].keys())[0]:
         state_dict = {key.replace('module.',''): item for key, item in checkpoint["state_dict"].items()}
     else:
         state_dict = checkpoint["state_dict"]
-    missing_states = set(model.state_dict().keys()) - set(state_dict.keys())
+
+    state_dict_new = copy.deepcopy(state_dict)
+
+    # # some hard coded operations to skip updampling layers
+    # if config.dataset.img_size_render == config.dataset.img_size:
+    #     state_dict_new['render_module.render.upsample_conv.0.weight'] = state_dict['render_module.render.upsample_conv.3.weight']
+    #     state_dict_new['render_module.render.upsample_conv.0.bias'] = state_dict['render_module.render.upsample_conv.3.bias']
+    #     state_dict_new['render_module.render.upsample_conv.1.weight'] = state_dict['render_module.render.upsample_conv.4.weight']
+    #     state_dict_new['render_module.render.upsample_conv.1.bias'] = state_dict['render_module.render.upsample_conv.4.bias']
+    #     state_dict_new['render_module.render.upsample_conv.1.running_mean'] = state_dict['render_module.render.upsample_conv.4.running_mean']
+    #     state_dict_new['render_module.render.upsample_conv.1.running_var'] = state_dict['render_module.render.upsample_conv.4.running_var']
+    #     state_dict_new['render_module.render.upsample_conv.3.weight'] = state_dict['render_module.render.upsample_conv.6.weight']
+    #     state_dict_new['render_module.render.upsample_conv.3.bias'] = state_dict['render_module.render.upsample_conv.6.bias']
+    #     del state_dict_new['render_module.render.upsample_conv.4.weight']
+    #     del state_dict_new['render_module.render.upsample_conv.4.bias']
+    #     del state_dict_new['render_module.render.upsample_conv.4.running_mean']
+    #     del state_dict_new['render_module.render.upsample_conv.4.running_var']
+    #     del state_dict_new['render_module.render.upsample_conv.4.num_batches_tracked']
+    #     del state_dict_new['render_module.render.upsample_conv.6.weight']
+    #     del state_dict_new['render_module.render.upsample_conv.6.bias']
+
+    missing_states = set(model.state_dict().keys()) - set(state_dict_new.keys())
     if len(missing_states) > 0:
         warnings.warn("Missing keys ! : {}".format(missing_states))
-    model.load_state_dict(state_dict, strict=True)
+    model.load_state_dict(state_dict_new, strict=True)
 
-    del checkpoint, state_dict
+    del checkpoint, state_dict, state_dict_new
     return model
 
 
@@ -143,3 +168,34 @@ def truncated_normal_(tensor, mean=0, std=1):
     ind = valid.max(-1, keepdim=True)[1]
     tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
     tensor.data.mul_(std).add_(mean)
+
+
+def process_data(config, sample, device='cuda'):
+    brightness = config.dataset.aug_brightness
+    contrast = config.dataset.aug_contrast
+    saturation = config.dataset.aug_saturation
+    hue = config.dataset.aug_hue
+
+    NORMALIZE_MEAN = torch.tensor([0.485, 0.456, 0.406])
+    NORMALIZE_STD = torch.tensor([0.229, 0.224, 0.225])
+    normalization = kornia.enhance.Normalize(mean=NORMALIZE_MEAN, std=NORMALIZE_STD)
+    inverse_normalization = kornia.enhance.Denormalize(mean=NORMALIZE_MEAN, std=NORMALIZE_STD)
+
+    imgs = sample['images']
+    assert len(imgs.shape) == 5   # [b,t,c,h,w]
+    
+    transform = K.AugmentationSequential(
+                    K.ColorJiggle(brightness, contrast, saturation, hue, p=1.0),
+                    data_keys=[DataKey.INPUT],  # Just to define the future input here.
+                    same_on_batch=True,)
+    
+    imgs_aug = []
+    for img_scene in imgs:
+        img_scene_aug = inverse_normalization(img_scene)
+        img_scene_aug = transform(img_scene_aug)
+        img_scene_aug = normalization(img_scene_aug)
+        imgs_aug.append(img_scene_aug)
+    imgs_aug = torch.stack(imgs_aug)
+
+    sample['images'] = imgs_aug
+    return sample

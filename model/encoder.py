@@ -26,8 +26,10 @@ class CrossViewEncoder(nn.Module):
         x in shape [b,t,c,h,w]
         '''
         b,t,c,h,w = x.shape
-        #__import__('pdb').set_trace()
 
+        # The positional embeddings and camera ID embeddings are not useful and degenerates the performance a bit,
+        # While I am too lazy to train a now model without it.
+        # You can train a model without these embeddings to verify the point.
         # add 2D positional embedding (same for each image)
         w_h_diff_half = (w - h) // 2
         x = x + self.pixel_emb.unsqueeze(0)[:,:,:,int(w_h_diff_half):int(w-w_h_diff_half),:w]                # [b,t,c,h,w]

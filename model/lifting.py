@@ -18,14 +18,11 @@ class lifting(nn.Module):
         self.latent_res = config.model.latent_res
         self.latent_emb = nn.parameter.Parameter(
                             (torch.rand(self.latent_res, self.latent_res, self.latent_res, in_dim) * embedding_stdev))
-        #self.latent_pe = embedding_stdev * positionalencoding3d(in_dim, self.latent_res, self.latent_res, self.latent_res)
-        #self.latent_pe_scale = nn.parameter.Parameter(torch.tensor(1.0))
 
         if config.model.use_pe_lifting:
             self.lift_init = lifting_make_init_layer(config, in_dim)
         
         self.transformer = lifting_make_transformer_layers(config, in_dim)
-        #self.conv3ds = lifting_make_conv3d_layers(config, in_dim)
 
         self.latent_refine = nn.Sequential(
             nn.ConvTranspose3d(in_dim, 256, 4, stride=2, padding=1),
@@ -44,41 +41,37 @@ class lifting(nn.Module):
         '''
         b,t,c,h,w = x.shape
         device = x.device
+        #x = x[:,:1]
         x = rearrange(x, 'b t c h w -> b (t h w) c')
+        
         if torch.is_tensor(pe2d):
-            pe2d = rearrange(pe2d, 'b t c h w -> b (t h w) c')
+            pe2d = rearrange(pe2d, 'b t c h w -> b (t h w) c')  # legacy, not used
         
         latent = rearrange(self.latent_emb, 'd h w c -> (d h w) c').unsqueeze(0).repeat(b,1,1).to(device)  # [b,N=d*h*w,c]
-        #latent += self.latent_pe.unsqueeze(0).to(device) * self.latent_pe_scale.to(device)
-        #print('pe3d', latent.mean().item(), latent.var().item(), latent.min().item(), latent.max().item())
-        
+        #latent_cp = latent.clone()
+
+        # legacy, not used
         if self.config.model.use_pe_lifting and (not self.config.model.use_flash_attn):
-            #latent = self.lift_init(tgt=latent, memory=pe2d, value=x)       # tgt is query, memory is key
             latent = self.lift_init(latent, pe2d)
         
         if self.config.model.render_feat_raw and self.training:
+            # legacy, not used
             latent_raw = latent.clone()
             latent_raw = rearrange(latent_raw, 'b (d h w) c -> b c d h w', d=self.latent_res, h=self.latent_res, w=self.latent_res)
         else:
             latent_raw = None
         
+        # legacy, not used
         if torch.is_tensor(pe2d):
             x = x + pe2d
-        
-        # for (block_transformer, block_conv3d) in zip(self.transformer, self.conv3ds):
-        #     latent = block_transformer(latent, x)
-        #     latent = rearrange(latent, 'b (d h w) c -> b c d h w', d=self.latent_res, h=self.latent_res, w=self.latent_res)
-        #     latent = block_conv3d(latent)
-        #     latent = rearrange(latent, 'b c d h w -> b (d h w) c')
+
         for block in self.transformer:
+            #breakpoint()
             latent = block(latent, x)
 
+        #latent = latent_cp
+
         latent = rearrange(latent, 'b (d h w) c -> b c d h w', d=self.latent_res, h=self.latent_res, w=self.latent_res)
-        
-        # if self.config.model.render_feat_raw and self.training:
-        #     latent_raw = latent.clone()
-        # else:
-        #     latent_raw = None
 
         latent = self.latent_refine(latent)
         

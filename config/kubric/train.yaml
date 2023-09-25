@@ -1,5 +1,5 @@
 exp_name: 'base2'
-exp_group: 'forgev2'
+exp_group: 'leap'
 output_dir: './output/'
 log_dir: './log'
 workers: 8

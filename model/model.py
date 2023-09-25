@@ -12,9 +12,9 @@ from model.lifting import lifting
 from model.render_module import RenderModule
 
 
-class FORGE_V2(nn.Module):
+class LEAP(nn.Module):
     def __init__(self, config) -> None:
-        super(FORGE_V2, self).__init__()
+        super(LEAP, self).__init__()
         self.config = config
 
         # input and output size
@@ -74,24 +74,21 @@ class FORGE_V2(nn.Module):
 
         # cross-view feature refinement
         features = self.encoder(features)                                       # [b,t,c,h,w]
-        #print('features', features.mean().item(), features.var().item(), features.min().item(), features.max().item() )
 
-        # transform 2D p.e. and added to features
+        # transform 2D p.e. and added to features (legacy, not used)
         if self.config.model.use_neck:
             pe2d = self.neck(features)                                          # [b,t,c,h,w]
-            #print('pe2d', pe2d.mean().item(), pe2d.var().item(), pe2d.min().item(), pe2d.max().item())
         else:
             pe2d = None
 
         # 2D-3D lifting
-        features_3d_raw, features_3d = self.lifting(features, pe2d)               # [b,c=768,D=16,H,W], [b,c=128,D,H,W]
+        features_3d_raw, features_3d = self.lifting(features, pe2d)             # [b,c=768,D=16,H,W], [b,c=128,D=64,H,W]
 
         # rendering
         results = self.render_module(features_3d, sample, return_neural_volume, render_depth, features_3d_raw)
 
-        # return 2D features if necessary
+        # return 2D features if necessary (legacy, not used)
         if self.config.model.render_feat_raw and self.training:
-            #results['features_2d'] = rearrange(features, 'b t c h w -> (b t) c h w')
             results['features_2d'] = rearrange(pe2d, 'b t c h w -> (b t) c h w')
         
         return results

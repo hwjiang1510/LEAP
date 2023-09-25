@@ -1,5 +1,5 @@
 exp_name: 'base_res224_lr2x_percploss-0.1_res32_encoder-nonfix-1e-5_no-neck_no-feat-render-loss_pose_uncanonicalized'
-exp_group: 'forgev2'
+exp_group: 'leap'
 output_dir: './output/'
 log_dir: './log'
 workers: 4
@@ -10,8 +10,8 @@ seed: 42
 
 # dataset config
 dataset:
-  name: 'gso' #'gso' #'kubric'
-  category: 'gso_unseen_category' #'gso_unseen_category', 'general', 'general_unseen_category'
+  name: 'kubric' #'gso' #'gso' #'kubric'
+  category: 'general' #'gso_unseen_category' #'gso_unseen_category', 'general', 'general_unseen_category'
   task: 'singlesequence'
   img_size: 224
   img_size_render: 112
@@ -78,7 +78,7 @@ train:
   grad_max: 5.0
   use_amp: False
   use_rand_view: False
-  use_uncanonicalized_pose: True
+  use_uncanonicalized_pose: False
 
 # test config
 test:
