@@ -99,8 +99,9 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
 
 <meta name="msapplication-TileColor" content="#da532c">
 <meta name="theme-color" content="#ffffff"> -->
-<link rel="shortcut icon" type="image/x-icon" href="forge.ico">
+<link rel="shortcut icon" type="image/x-icon" href="leap.ico">
 </head>
+
 
 
 <body data-gr-c-s-loaded="true">
@@ -119,7 +120,7 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
 	<center><h2><a href="">Paper</a> | <a href="">Code</a> </h2></center>
 
 
-<h3 align="center">TL;DR: NeRF from sparse (2~5) views, without camera poses, generalize to novel instance, and under a second.</h3>
+<h3 align="center">TL;DR: NeRF from sparse (2~5) views, without camera poses, under a second, and generalize to novel instances.</h3>
 <br>
 
 <br>
@@ -273,6 +274,23 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
   </tbody>
 </table>
 
+<br>
+
+
+
+<h2 align="center">Related Project and Acknowledgement</h2>
+<table border="0" cellspacing="10" cellpadding="0" align="center">
+  <tbody>
+  <tr>
+    <td align="center" valign="middle">
+        <p align="justify" width="20%"><b> <a href="https://ut-austin-rpl.github.io/FORGE/">FORGE</a></b>: Sparse-view reconstruction by leveraging the syngergy between shape and pose. </p>
+        <p align="justify" width="20%"><b> <a href="https://ut-austin-rpl.github.io/FORGE/">Cross-view-transformers</a></b>: A cross-view transformer that maps unposed images (while with fixed poses) to a representation in another domain. </p>
+        <p align="justify" width="20%">We thank Brady Zhou for his inspiring cross-view transformers, and we thank Shuhan Tan for proof-reading the paper. </p>
+    </td>
+  </tr>
+  </tbody>
+</table>
+
 <hr>
 <!-- <table align=center width=800px> <tr> <td> <left> -->
 <center><h1>Citation</h1></center>
@@ -281,15 +299,16 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
                   <td>
                   <left>
 <pre><code style="display:block; overflow-x: auto">
-@article{jiang2022forge,
-   title={Few-View Object Reconstruction with Unknown Categories and Camera Poses},
-   author={Jiang, Hanwen and Jiang, Zhenyu and Grauman, Kristen and Zhu, Yuke},
+@article{jiang2022LEAP,
+   title={LEAP: Liberate Sparse-view 3D Modeling from Camera Poses},
+   author={Jiang, Hanwen and Jiang, Zhenyu and Zhao, Yue and Huang, Qixing},
    journal={ArXiv},
-   year={2022},
-   volume={2212.04492}
+   year={2023},
+   volume={}
 }
 </code></pre>
 </left></td></tr></table>
+
 
 
 <!-- <br><hr> <table align=center width=800px> <tr> <td> <left>
