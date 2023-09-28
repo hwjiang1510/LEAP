@@ -1,12 +1,14 @@
+---
+
 layout: common
 permalink: /
 categories: projects
+---
 
 <link href='https://fonts.googleapis.com/css?family=Titillium+Web:400,600,400italic,600italic,300,300italic' rel='stylesheet' type='text/css'>
 
 <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>LEAP</title>
-
 
 
 
@@ -120,7 +122,8 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
 	<center><h2><a href="">Paper</a> | <a href="">Code</a> </h2></center>
 
 <br>
-<h2 align="center">TL;DR: NeRF from sparse (2~5) views, without camera poses, under a second, and generalize to novel instances.</h2>
+<p align="center"><b>TL;DR</b>: NeRF from sparse (2~5) views, without camera poses, under a second, and generalize to novel instances.</p>
+
 <br>
 
 <h1 align="center">Real-World Demo</h1>
