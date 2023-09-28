@@ -119,10 +119,8 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
     </h2></center>
 	<center><h2><a href="">Paper</a> | <a href="">Code</a> </h2></center>
 
-
-<h3 align="center">TL;DR: NeRF from sparse (2~5) views, without camera poses, under a second, and generalize to novel instances.</h3>
 <br>
-
+<h2 align="center">TL;DR: NeRF from sparse (2~5) views, without camera poses, under a second, and generalize to novel instances.</h2>
 <br>
 
 <h1 align="center">Real-World Demo</h1>
@@ -284,7 +282,7 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
   <tr>
     <td align="center" valign="middle">
         <p align="justify" width="20%"><b> <a href="https://ut-austin-rpl.github.io/FORGE/">FORGE</a></b>: Sparse-view reconstruction by leveraging the syngergy between shape and pose. </p>
-        <p align="justify" width="20%"><b> <a href="https://ut-austin-rpl.github.io/FORGE/">Cross-view-transformers</a></b>: A cross-view transformer that maps unposed images (while with fixed poses) to a representation in another domain. </p>
+        <p align="justify" width="20%"><b> <a href="https://github.com/bradyz/cross_view_transformers/">Cross-view-transformers</a></b>: A cross-view transformer that maps unposed images (while with fixed poses) to a representation in another domain. </p>
         <p align="justify" width="20%">We thank Brady Zhou for his inspiring cross-view transformers, and we thank Shuhan Tan for proof-reading the paper. </p>
     </td>
   </tr>
