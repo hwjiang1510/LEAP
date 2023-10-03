@@ -1,6 +1,6 @@
 # LEAP: Liberate Sparse-view 3D Modeling from Camera Poses
 
-### [Project Page](https://hwjiang1510.github.io/LEAP/) |  [Paper]()
+### [Project Page](https://hwjiang1510.github.io/LEAP/) |  [Paper](https://arxiv.org/pdf/2310.01410.pdf)
 <br/>
 
 > LEAP: Liberate Sparse-view 3D Modeling from Camera Poses
@@ -64,6 +64,6 @@ We provide the model weights trained on [Omniobject3D dataset](https://utexas.bo
    author={Jiang, Hanwen and Jiang, Zhenyu and Zhao, Yue and Huang, Qixing},
    journal={ArXiv},
    year={2023},
-   volume={}
+   volume={2310.01410}
 }
 ```
