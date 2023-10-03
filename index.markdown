@@ -119,12 +119,12 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
     <center><h2>
         <a href="https://www.cs.utexas.edu/">The University of Texas at Austin</a>&nbsp;&nbsp;&nbsp; 		
     </h2></center>
-	<center><h2><a href="">Paper</a> | <a href="https://github.com/hwjiang1510/LEAP">Code</a> </h2></center>
+	<center><h2><a href="https://arxiv.org/pdf/2310.01410.pdf">Paper</a> | <a href="https://github.com/hwjiang1510/LEAP">Code</a> </h2></center>
 <br>
 
 
-<p align="center"><b>TL;DR</b>: NeRF from sparse (2~5) views without camera poses, runs in a second, and generalizes to novel instances.</p>
 
+<p align="center"><b>TL;DR</b>: NeRF from sparse (2~5) views without camera poses, runs in a second, and generalizes to novel instances.</p>
 <br>
 
 <h1 align="center">Real-World Demo</h1>
@@ -304,10 +304,11 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
    author={Jiang, Hanwen and Jiang, Zhenyu and Zhao, Yue and Huang, Qixing},
    journal={ArXiv},
    year={2023},
-   volume={}
+   volume={2310.01410}
 }
 </code></pre>
 </left></td></tr></table>
+
 
 
 
