@@ -119,10 +119,11 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
     <center><h2>
         <a href="https://www.cs.utexas.edu/">The University of Texas at Austin</a>&nbsp;&nbsp;&nbsp; 		
     </h2></center>
-	<center><h2><a href="">Paper</a> | <a href="">Code</a> </h2></center>
+	<center><h2><a href="">Paper</a> | <a href="https://github.com/hwjiang1510/LEAP">Code</a> </h2></center>
 <br>
 
-<p align="center"><b>TL;DR</b>: NeRF from sparse (2~5) views without camera poses, runs under a second, and generalizes to novel instances.</p>
+
+<p align="center"><b>TL;DR</b>: NeRF from sparse (2~5) views without camera poses, runs in a second, and generalizes to novel instances.</p>
 
 <br>
 
@@ -164,7 +165,7 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
                 <tr>
                     <td>
   <p align="justify" width="20%">
-     (Left) Prior works use camera poses, i.e. projection, to map 2D image information into the 3D domain. However, under inaccurate poses, the 2D-3D association will be wrong, leading to incorrect 3D features and degenerated performance. (Right) In contrast, LEAP uses attention to assign weights to all 2D pixels adaptively. The operation is not reliant on camera poses, enabling LEAP directly perform inference on unposed images. To initialize the features of 3D points, LEAP introduces a parametrized neural volume, which is shared across all scenes. The neural volume is trained to encode geometry and texture priors. For each incoming scene, the neural volume gets updated by querying the 2D image features and decodes the radiance field. For each 3D query point on a casting ray, its features are interpolated from its nearby voxels.
+     (Left) Prior works use poses-based operations, i.e., projection, to map 2D image information into the 3D domain. However, under inaccurate poses, the 2D-3D association will be wrong, leading to incorrect 3D features and degenerated performance. (Right) In contrast, LEAP uses attention to assign weights to all 2D pixels adaptively. The operation is not reliant on camera poses, enabling LEAP directly perform inference on unposed images. To initialize the features of 3D points, LEAP introduces a parametrized neural volume, which is shared across all scenes. The neural volume is trained to encode geometry and texture priors. For each incoming scene, the neural volume gets updated by querying the 2D image features and decodes the radiance field. For each 3D query point on a casting ray, its features are interpolated from its nearby voxels.
 </p></td></tr></table>
 <br><br>
 
@@ -245,8 +246,6 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
   </tbody>
 </table>
 
-<br>
-
 <h2 align="center">Neural Volume</h2>
 <table border="0" cellspacing="10" cellpadding="0" align="center">
   <tbody>
@@ -285,7 +284,7 @@ src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
   <tr>
     <td align="center" valign="middle">
         <p align="justify" width="20%"><b> <a href="https://ut-austin-rpl.github.io/FORGE/">FORGE</a></b>: Sparse-view reconstruction by leveraging the syngergy between shape and pose. </p>
-        <p align="justify" width="20%"><b> <a href="https://github.com/bradyz/cross_view_transformers/">Cross-view-transformers</a></b>: A cross-view transformer that maps unposed images (while with fixed poses) to a representation in another domain. </p>
+        <p align="justify" width="20%"><b> <a href="https://github.com/bradyz/cross_view_transformers/">Cross-view Transformers</a></b>: A cross-view transformer that maps unposed images (while with fixed poses) to a representation in another domain. </p>
         <p align="justify" width="20%">We thank Brady Zhou for his inspiring cross-view transformers, and we thank Shuhan Tan for proof-reading the paper. </p>
     </td>
   </tr>
